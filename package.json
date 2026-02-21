@@ -9,7 +9,8 @@
     "zeta-assistant": "./dist/main.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "soul.md"
   ],
   "exports": {
     ".": {
