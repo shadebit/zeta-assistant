@@ -1,0 +1,27 @@
+branch=$(git rev-parse --abbrev-ref HEAD)
+
+# Allowed patterns: main, feat/*, fix/*, docs/*, refactor/*, chore/*, test/*, ci/*, release/*
+pattern="^(main|feat|fix|docs|refactor|chore|test|ci|release|perf|build|style|revert)\/.+$"
+
+if [ "$branch" = "main" ]; then
+  exit 0
+fi
+
+if ! echo "$branch" | grep -Eq "$pattern"; then
+  echo ""
+  echo "❌ Invalid branch name: \"$branch\""
+  echo ""
+  echo "Branch names must follow the pattern:"
+  echo ""
+  echo "  <type>/<short-description>"
+  echo ""
+  echo "  Types: feat, fix, docs, refactor, chore, test, ci, release, perf, build, style, revert"
+  echo ""
+  echo "  Examples:"
+  echo "    feat/agent-loop"
+  echo "    fix/whatsapp-qr-timeout"
+  echo "    chore/update-dependencies"
+  echo ""
+  exit 1
+fi
+

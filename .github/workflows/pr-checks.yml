@@ -1,0 +1,103 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate branch name
+        run: |
+          BRANCH="${{ github.head_ref }}"
+          PATTERN="^(feat|fix|docs|refactor|chore|test|ci|release|perf|build|style|revert)\/.+$"
+
+          if ! echo "$BRANCH" | grep -Eq "$PATTERN"; then
+            echo ""
+            echo "❌ Invalid branch name: \"$BRANCH\""
+            echo ""
+            echo "Branch names must follow: <type>/<short-description>"
+            echo "Types: feat, fix, docs, refactor, chore, test, ci, release, perf, build, style, revert"
+            echo ""
+            echo "Examples: feat/agent-loop, fix/whatsapp-qr-timeout"
+            exit 1
+          fi
+
+          echo "✅ Branch name is valid: $BRANCH"
+
+      - name: Validate commit messages
+        run: |
+          PATTERN="^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?: .{1,}"
+          FAILED=0
+
+          while IFS= read -r msg; do
+            if ! echo "$msg" | grep -Eq "$PATTERN"; then
+              echo "❌ Invalid commit message: \"$msg\""
+              FAILED=1
+            fi
+          done < <(git log origin/main..HEAD --pretty=format:"%s")
+
+          if [ "$FAILED" -eq 1 ]; then
+            echo ""
+            echo "All commit messages must follow Conventional Commits (https://www.conventionalcommits.org):"
+            echo "  <type>(<scope>): <description>"
+            echo ""
+            echo "Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert"
+            exit 1
+          fi
+
+          echo "✅ All commit messages are valid."
+
+      - name: Reject merge commits in PR
+        run: |
+          MERGE_COMMITS=$(git log origin/main..HEAD --merges --oneline)
+          if [ -n "$MERGE_COMMITS" ]; then
+            echo ""
+            echo "❌ Merge commits detected in this PR:"
+            echo "$MERGE_COMMITS"
+            echo ""
+            echo "Please rebase your branch instead of merging: git rebase origin/main"
+            exit 1
+          fi
+
+          echo "✅ No merge commits found."
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
