@@ -1,0 +1,33 @@
+# JetBrains IDE
+.idea/
+
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Data
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.local
+
+# Logs
+logs/
+*.log
+
+# PM2
+.pm2/
+
+
