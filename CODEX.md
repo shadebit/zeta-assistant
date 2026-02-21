@@ -3,6 +3,9 @@
 > **This file is the single source of truth for the Zeta Assistant project.**
 > All AI assistants MUST read and follow this specification when working on this codebase.
 > The canonical source is `README.md` at the project root. This file mirrors it exactly.
+>
+> ⚠️ **MANDATORY: You MUST also read and follow `CONTRIBUTING.md` at the project root.**
+> It contains the coding standards, naming conventions, testing requirements, and best practices that govern all code in this repository.
 
 ---
 
