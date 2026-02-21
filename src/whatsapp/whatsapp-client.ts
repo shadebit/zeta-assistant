@@ -22,6 +22,8 @@ export class WhatsappClient {
   private readonly client: WhatsappWebClient;
   private readonly logger = new WinstonLogger(WhatsappClient.name);
   private readonly sessionPath: string;
+  // Tracks messages sent by the bot itself to prevent re-processing and infinite loops.
+  private readonly sentByBot = new Set<string>();
   private isReady = false;
 
   constructor(options: WhatsappClientOptions) {
@@ -158,9 +160,22 @@ export class WhatsappClient {
         return;
       }
 
+      // Since we send messages to our own number, bot replies arrive back as new incoming
+      // messages (owner → OpenAI → reply → WhatsApp → same number → triggers onMessage again).
+      // We track bot-sent texts in sentByBot to break this infinite loop.
+      if (this.sentByBot.has(msg.body)) {
+        this.sentByBot.delete(msg.body);
+        return;
+      }
+
       this.logger.info(`Message from owner: ${msg.body}`);
       onMessage?.(msg.from, msg.body);
     });
+  }
+
+  async sendMessage(to: string, text: string): Promise<void> {
+    this.sentByBot.add(text);
+    await this.client.sendMessage(to, text);
   }
 }
 
