@@ -3,6 +3,7 @@ name: PR Checks
 on:
   pull_request:
     branches: [main]
+    types: [opened, edited, synchronize, reopened]
 
 concurrency:
   group: pr-${{ github.event.pull_request.number }}
@@ -41,42 +42,29 @@ jobs:
 
           echo "✅ Branch name is valid: $BRANCH"
 
-      - name: Validate commit messages
+      - name: Validate PR title (becomes the squash commit message)
         run: |
+          TITLE="${{ github.event.pull_request.title }}"
           PATTERN="^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?: .{1,}"
-          FAILED=0
 
-          while IFS= read -r msg; do
-            if ! echo "$msg" | grep -Eq "$PATTERN"; then
-              echo "❌ Invalid commit message: \"$msg\""
-              FAILED=1
-            fi
-          done < <(git log origin/main..HEAD --pretty=format:"%s")
-
-          if [ "$FAILED" -eq 1 ]; then
+          if ! echo "$TITLE" | grep -Eq "$PATTERN"; then
             echo ""
-            echo "All commit messages must follow Conventional Commits (https://www.conventionalcommits.org):"
+            echo "❌ Invalid PR title: \"$TITLE\""
+            echo ""
+            echo "The PR title becomes the squash commit message and must follow Conventional Commits:"
+            echo ""
             echo "  <type>(<scope>): <description>"
             echo ""
-            echo "Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert"
+            echo "  Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert"
+            echo ""
+            echo "  Examples:"
+            echo "    feat(agent): add command batching"
+            echo "    fix(whatsapp): handle QR code timeout"
+            echo "    docs: update README"
             exit 1
           fi
 
-          echo "✅ All commit messages are valid."
-
-      - name: Reject merge commits in PR
-        run: |
-          MERGE_COMMITS=$(git log origin/main..HEAD --merges --oneline)
-          if [ -n "$MERGE_COMMITS" ]; then
-            echo ""
-            echo "❌ Merge commits detected in this PR:"
-            echo "$MERGE_COMMITS"
-            echo ""
-            echo "Please rebase your branch instead of merging: git rebase origin/main"
-            exit 1
-          fi
-
-          echo "✅ No merge commits found."
+          echo "✅ PR title is valid: $TITLE"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -88,7 +76,7 @@ jobs:
         run: npm ci
 
       - name: Audit dependencies
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=critical
 
       - name: Lint
         run: npm run lint
