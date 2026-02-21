@@ -267,6 +267,7 @@ let fileTransportAdded = false;
 
 - **Minimal dependencies.** Every dependency is a liability.
 - Before adding a package, ask: _"Can this be done with Node.js built-in APIs in under 50 lines?"_
+- **Always install the latest stable version.** Before adding or upgrading any library, verify the latest version on npm (`npm view <pkg> version`) and read the **official documentation / changelog** for that version to understand the correct way to use it. Never blindly copy usage patterns from old tutorials or outdated examples — APIs change between major versions.
 - Pin **exact versions** in `package.json` (no `^` or `~`).
 - Keep `devDependencies` and `dependencies` strictly separated.
 - Audit dependencies regularly with `npm audit`.
