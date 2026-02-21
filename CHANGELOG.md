@@ -1,3 +1,13 @@
+# v0.4.0
+
+**Released:** 2026-02-21
+
+- Merge pull request #4 from shadebit/fix/pr-check (0a73a28)
+- chore: update npm audit level to critical and downgrade @types/jest (fb518f3)
+- chore: replace commit validation with PR title validation, update workflow and Husky hooks (1b9c562)
+- Merge pull request #3 from shadebit/feat/check-branch-name-and-commit-message (879fa3e)
+- chore: set production environment for release workflow (0f26a06)
+
 # v0.3.0
 
 **Released:** 2026-02-21
