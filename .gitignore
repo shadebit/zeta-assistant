@@ -24,4 +24,5 @@ coverage/
 .wwebjs_auth/
 .wwebjs_cache/
 
-
+# Zeta local data (if accidentally placed in project root)
+.zeta/

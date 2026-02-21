@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # Skip release commits made by the bot itself to avoid infinite loops
+    if: "!startsWith(github.event.head_commit.message, 'chore: release')"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Bump version (minor)
+        id: version
+        run: |
+          npm version minor --no-git-tag-version
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Generate changelog
+        run: |
+          VERSION="v${{ steps.version.outputs.version }}"
+          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+          echo "# ${VERSION}" > /tmp/new-entry.md
+          echo "" >> /tmp/new-entry.md
+          echo "**Released:** $(date -u +%Y-%m-%d)" >> /tmp/new-entry.md
+          echo "" >> /tmp/new-entry.md
+
+          if [ -z "$PREV_TAG" ]; then
+            git log --pretty=format:"- %s (%h)" >> /tmp/new-entry.md
+          else
+            git log "${PREV_TAG}..HEAD" --pretty=format:"- %s (%h)" >> /tmp/new-entry.md
+          fi
+
+          echo "" >> /tmp/new-entry.md
+          echo "" >> /tmp/new-entry.md
+
+          if [ -f CHANGELOG.md ]; then
+            cat CHANGELOG.md >> /tmp/new-entry.md
+          fi
+
+          mv /tmp/new-entry.md CHANGELOG.md
+
+      - name: Commit version bump and changelog
+        run: |
+          git add package.json package-lock.json CHANGELOG.md
+          git commit -m "chore: release v${{ steps.version.outputs.version }}"
+          git tag "v${{ steps.version.outputs.version }}"
+          git push origin main --tags
+
+      - name: Publish to npm
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+

@@ -38,11 +38,7 @@ The assistant runs **only while the terminal is open**. No cloud, no webhooks, n
 OPEN_AI_API_KEY=sk-... npx zeta-assistant
 ```
 
-Or with the flag:
-
-```bash
-npx zeta-assistant --OPEN_AI_API_KEY=sk-...
-```
+> ⚠️ **Security:** Always prefer the env var method above. Passing the key via `--OPEN_AI_API_KEY=` flag exposes it in `ps aux` to other users on the same machine.
 
 ### Option 2: Clone and run with npm
 
@@ -210,6 +206,26 @@ npm run format
 
 ---
 
+## Releases
+
+Releases are fully automated via GitHub Actions. When a **PR is merged into `main`**:
+
+1. CI runs lint, type check, and build
+2. Version is bumped (minor)
+3. `CHANGELOG.md` is generated with all commits since the last release
+4. A git tag is created (`v0.3.0`, `v0.4.0`, etc.)
+5. The package is published to [npm](https://www.npmjs.com/package/zeta-assistant)
+
+No manual steps required. Just merge and it ships.
+
+### Required GitHub Secrets
+
+| Secret | Where to get it |
+|---|---|
+| `NPM_TOKEN` | [npmjs.com → Access Tokens → Generate New Token (Automation)](https://www.npmjs.com/settings/~/tokens) |
+
+---
+
 ## Roadmap
 
 | Phase | Goal | Status |
@@ -230,6 +246,19 @@ npm run format
 ## Contributing
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for coding standards, naming conventions, testing requirements, and best practices.
+
+### How to Help
+
+The best way to contribute is to **use Zeta Assistant and report issues through it**:
+
+1. Run the assistant:
+   ```bash
+   OPEN_AI_API_KEY=sk-... npx zeta-assistant
+   ```
+2. Use it normally — send messages, ask it to run commands, explore its limits.
+3. When something breaks or behaves unexpectedly, **send a WhatsApp audio or text message describing the problem**. This way we collect real-world issues from actual usage and can fix them for everyone at once.
+
+The more people running Zeta in different environments and use cases, the faster we catch edge cases and improve the assistant for all users.
 
 ---
 
