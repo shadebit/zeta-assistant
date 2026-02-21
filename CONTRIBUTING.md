@@ -65,7 +65,7 @@ Follow standard TypeScript community conventions without exception.
 zeta-assistant/
 ├── src/
 │   ├── index.ts              # Library entry point (exports public API)
-│   ├── cli.ts                # CLI entry point (bin command)
+│   ├── main.ts                # CLI entry point (bin command)
 │   ├── config/               # Configuration loading & defaults
 │   ├── whatsapp/             # WhatsApp Web client integration
 │   ├── queue/                # Task queue (SQLite)
@@ -183,7 +183,7 @@ zeta-assistant/
 - **All files in `src/` must have corresponding unit tests** except:
   - Type-only files (`types/`)
   - Barrel re-export files (`index.ts`)
-  - The CLI entry point (`cli.ts`) — tested via integration tests later.
+  - The CLI entry point (`main.ts`) — tested via integration tests later.
 - Minimum coverage target: **80%** line coverage.
 
 ### 9.3 Test Conventions
@@ -206,27 +206,55 @@ zeta-assistant/
 
 ---
 
-## 10. Documentation
+## 10. Documentation & Comments
 
-### 10.1 Code Comments
+### 10.1 Self-Documenting Code — No Noise
 
-- **JSDoc on every exported function, class, type, and interface.**
-  ```typescript
-  /**
-   * Enqueues a new task for sequential processing.
-   *
-   * @param goalText - The original user message.
-   * @returns The created task with QUEUED status.
-   * @throws {TaskLimitExceededError} If the queue exceeds maximum capacity.
-   */
-  export function enqueueTask(goalText: string): Task {}
-  ```
-- Inline comments only for **non-obvious logic**. If the code needs a comment to be understood, consider rewriting it first.
-- Never comment out code. Remove it; Git keeps history.
+**Names are the documentation.** Function, class, method, and property names must be clear enough to understand without a comment. If a name needs a comment to explain what it does, the name is wrong — rename it.
+
+**Do NOT add comments that restate the obvious:**
+
+```typescript
+// ❌ Bad — the name already says everything
+/** Logs an informational message. */
+info(message: string): void;
+
+/** Absolute path to the logs directory. */
+readonly logsDir: string;
+
+/** Whether to reset the WhatsApp session. */
+readonly resetSession: boolean;
+
+// ✅ Good — no comment needed, the name is clear
+info(message: string): void;
+readonly logsDir: string;
+readonly resetSession: boolean;
+```
+
+**Do NOT add JSDoc blocks on functions, classes, interfaces, or properties whose name already conveys the intent.** This includes:
+
+- Getters/setters with obvious semantics
+- Interface properties with descriptive names
+- One-liner utility functions
+- Constructor parameters matching field names
+- `@param` / `@returns` that repeat the type signature
+
+**When to add a comment:**
+
+- **Non-obvious business rules** (e.g. "file transport is added only once because Winston throws on duplicates")
+- **Workarounds** with a link to the issue or reason
+- **Regex patterns** that are hard to read
+- **Module-level doc** explaining _why_ the module exists, if the file name alone is ambiguous
+
+```typescript
+// ✅ Good — explains a non-obvious constraint
+// Winston throws if you add the same transport twice, so we guard with a flag.
+let fileTransportAdded = false;
+```
 
 ### 10.2 README
 
-- Keep `README.md` as the single source of truth for project requirements and architecture.
+- Keep `README.md` as the single source of truth for project overview and architecture.
 - Update it when specifications change.
 
 ### 10.3 Changelog
@@ -329,7 +357,8 @@ Before submitting any change, verify:
 - [ ] Function parameters and return types are explicitly typed
 - [ ] Named exports only (no default exports)
 - [ ] File names are `kebab-case`
-- [ ] JSDoc on all exports
+- [ ] No unnecessary comments — names are the documentation
+- [ ] Comments only for non-obvious logic, workarounds, or regex
 - [ ] Unit tests written or updated
 - [ ] ESLint and Prettier pass with no warnings
 - [ ] No commented-out code

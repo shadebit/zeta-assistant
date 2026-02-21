@@ -6,15 +6,6 @@ node_modules/
 dist/
 *.tsbuildinfo
 
-# Data
-data/
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-
 # OS
 .DS_Store
 Thumbs.db
@@ -24,10 +15,13 @@ Thumbs.db
 .env.local
 
 # Logs
-logs/
 *.log
 
-# PM2
-.pm2/
+# Coverage
+coverage/
+
+# Zeta data directory (local runtime data)
+.wwebjs_auth/
+.wwebjs_cache/
 
 
