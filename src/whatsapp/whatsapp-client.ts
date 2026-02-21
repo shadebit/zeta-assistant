@@ -1,7 +1,9 @@
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth } = pkg;
 import qrcode from 'qrcode-terminal';
-import { rmSync } from 'node:fs';
+import { rmSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { execSync } from 'node:child_process';
 import { WinstonLogger } from '../logger/index.js';
 import type { ZetaConfig } from '../types/index.js';
 
@@ -19,16 +21,21 @@ export interface WhatsappClientOptions {
 export class WhatsappClient {
   private readonly client: WhatsappWebClient;
   private readonly logger = new WinstonLogger(WhatsappClient.name);
+  private readonly sessionPath: string;
   private isReady = false;
 
   constructor(options: WhatsappClientOptions) {
+    this.sessionPath = options.config.whatsappSessionPath;
+
     if (options.resetSession) {
-      this.clearSession(options.config.whatsappSessionPath);
+      this.clearSession();
     }
+
+    this.removeStaleLocks();
 
     this.client = new Client({
       authStrategy: new LocalAuth({
-        dataPath: options.config.whatsappSessionPath,
+        dataPath: this.sessionPath,
       }),
       puppeteer: {
         headless: true,
@@ -63,13 +70,59 @@ export class WhatsappClient {
     return this.isReady;
   }
 
-  private clearSession(sessionPath: string): void {
+  private clearSession(): void {
     this.logger.warn('Resetting WhatsApp session (will require new QR scan)...');
     try {
-      rmSync(sessionPath, { recursive: true, force: true });
+      rmSync(this.sessionPath, { recursive: true, force: true });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`Failed to clear session: ${message}`);
+    }
+  }
+
+  private removeStaleLocks(): void {
+    const lockFiles = [
+      join(this.sessionPath, 'session', 'SingletonLock'),
+      join(this.sessionPath, 'session', 'SingletonSocket'),
+      join(this.sessionPath, 'session', 'SingletonCookie'),
+    ];
+
+    for (const lockFile of lockFiles) {
+      if (existsSync(lockFile)) {
+        try {
+          rmSync(lockFile, { force: true });
+          this.logger.debug(`Removed stale lock: ${lockFile}`);
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : String(error);
+          this.logger.warn(`Could not remove lock file ${lockFile}: ${message}`);
+        }
+      }
+    }
+
+    this.killOrphanedChrome();
+  }
+
+  private killOrphanedChrome(): void {
+    try {
+      // Find Chrome processes using this session directory
+      const result = execSync(
+        `ps aux | grep -i "chrome" | grep "${this.sessionPath}" | grep -v grep | awk '{print $2}'`,
+        { encoding: 'utf-8' },
+      );
+
+      const pids = result.trim().split('\n').filter(Boolean);
+
+      if (pids.length > 0) {
+        this.logger.debug(`Found ${String(pids.length)} orphaned Chrome process(es), killing...`);
+        for (const pid of pids) {
+          execSync(`kill -9 ${pid}`, { stdio: 'ignore' });
+        }
+        // Give OS time to clean up
+        execSync('sleep 1', { stdio: 'ignore' });
+      }
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (_) {
+      // Ignore errors — Chrome might not be running, which is fine
     }
   }
 
@@ -81,7 +134,9 @@ export class WhatsappClient {
 
     this.client.on('ready', () => {
       this.isReady = true;
-      this.logger.info('Client is ready and connected.');
+      const info = this.client.info as { wid: { _serialized: string } } | undefined;
+      const owner = info?.wid._serialized ?? 'unknown';
+      this.logger.info(`Client is ready. Owner: ${owner}`);
     });
 
     this.client.on('authenticated', () => {
@@ -98,8 +153,12 @@ export class WhatsappClient {
       this.logger.warn(`Disconnected: ${reason}`);
     });
 
-    this.client.on('message', (msg: { from: string; body: string }) => {
-      this.logger.info(`Message from ${msg.from}: ${msg.body}`);
+    this.client.on('message_create', (msg: { from: string; fromMe: boolean; body: string }) => {
+      if (!msg.fromMe || !msg.body) {
+        return;
+      }
+
+      this.logger.info(`Message from owner: ${msg.body}`);
       onMessage?.(msg.from, msg.body);
     });
   }
