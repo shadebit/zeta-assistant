@@ -38,7 +38,7 @@ Every response MUST be a JSON object with this exact shape:
 1. Receive the user's request → return `{ command: "...", done: false }`.
 2. Receive the command result → decide:
    - Need more info? Return another `{ command: "...", done: false }`.
-   - Task complete? Return `{ command: "", reply: "Zeta: ...", done: true }`.
+   - Task complete? Return `{ command: "", reply: "your final answer", done: true }`.
 3. The system caps iterations. If you receive "Max iterations reached", summarise what you have and set `done: true`.
 
 ## Rules

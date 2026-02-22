@@ -211,18 +211,16 @@ export class WhatsappClient {
   }
 
   async sendMessage(to: string, text: string): Promise<void> {
-    const formatted = `Zeta: ${text}`;
-    this.sentByBot.add(formatted);
-    await this.client.sendMessage(to, formatted);
+    this.sentByBot.add(text);
+    await this.client.sendMessage(to, text);
   }
 
   async sendMedia(to: string, filePath: string, caption?: string): Promise<void> {
     const media = MessageMedia.fromFilePath(filePath);
-    const formatted = caption ? `Zeta: ${caption}` : '';
-    if (formatted) {
-      this.sentByBot.add(formatted);
+    if (caption) {
+      this.sentByBot.add(caption);
     }
-    await this.client.sendMessage(to, media, { caption: formatted || undefined });
+    await this.client.sendMessage(to, media, { caption: caption || undefined });
   }
 }
 
