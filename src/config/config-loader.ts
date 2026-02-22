@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import type { ZetaConfig, ZetaSettings } from '../types/index.js';
 
 const DEFAULT_ZETA_DIR = join(homedir(), '.zeta');
-const REQUIRED_SUBDIRS = ['whatsapp-session', 'logs', 'scripts'] as const;
+const REQUIRED_SUBDIRS = ['whatsapp-session', 'logs', 'scripts', 'screenshots'] as const;
 const SETTINGS_FILE = 'settings.json';
 
 const DEFAULT_SETTINGS: ZetaSettings = {

@@ -2,7 +2,7 @@
 
 A locally running AI operator controlled via WhatsApp Web. Send a message from your phone and Zeta plans, validates, and executes tasks autonomously — all from your terminal.
 
-> **Status:** Phase 4 complete — audio input (Whisper), SQLite task queue, file attachments, and context passing between tasks.
+> **Status:** Phase 5 complete — GUI control (screenshot, mouse, keyboard, open apps/URLs), audio input, task queue, and file attachments.
 
 ---
 
@@ -141,9 +141,16 @@ zeta-assistant/
 │   ├── index.ts                      # Library entry point (public API exports)
 │   ├── agent/
 │   │   ├── agent-loop.ts             # Orchestrates: message → plan → execute → reply
-│   │   └── planner.ts               # o3-mini planner (batches shell commands)
+│   │   └── planner.ts               # o3-mini planner (shell commands + tool calls)
 │   ├── executor/
-│   │   └── command-executor.ts       # Parallel shell command execution (/bin/bash)
+│   │   └── command-executor.ts       # Shell command execution (/bin/bash)
+│   ├── tools/
+│   │   ├── tool-runner.ts            # Dispatches between shell and GUI tools
+│   │   ├── screenshot-tool.ts        # macOS screencapture
+│   │   ├── mouse-tool.ts             # Mouse move/click via Python3 Quartz
+│   │   ├── keyboard-tool.ts          # Keyboard typing via AppleScript
+│   │   ├── open-url-tool.ts          # Open URL in default browser
+│   │   └── open-app-tool.ts          # Open macOS application
 │   ├── queue/
 │   │   └── task-queue.ts             # SQLite FIFO task queue with context passing
 │   ├── transcriber/
@@ -243,7 +250,7 @@ No manual steps required. Just merge and it ships.
 | 2 | AI agent loop (o3-mini), command execution, reply to messages | ✅ Done |
 | 3 | Audio input (Whisper), SQLite task queue, FIFO processing | ✅ Done |
 | 4 | File attachments, binary detection, media sending | ✅ Done |
-| 5 | GUI control (mouse, keyboard, screenshot, apps) | ⬜ |
+| 5 | GUI control (mouse, keyboard, screenshot, apps) | ✅ Done |
 | 6 | Governor + Decision Engine, confirmation flow | ⬜ |
 | 7 | Script registry (create, reuse, update) | ⬜ |
 | 8 | Full JSONL structured logging | ⬜ |

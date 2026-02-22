@@ -1,6 +1,6 @@
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import { Planner, buildSystemPrompt } from './planner.js';
-import { CommandExecutor } from '../executor/index.js';
+import { ToolRunner } from '../tools/index.js';
 import { WinstonLogger } from '../logger/index.js';
 import type { ZetaSettings } from '../types/index.js';
 import { loadSettings } from '../config/index.js';
@@ -14,7 +14,7 @@ export interface AgentResponse {
 
 export class AgentLoop {
   private readonly planner: Planner;
-  private readonly executor = new CommandExecutor();
+  private readonly toolRunner = new ToolRunner();
   private readonly settingsPath: string;
 
   constructor(apiKey: string, settingsPath: string) {
@@ -55,6 +55,7 @@ export class AgentLoop {
         role: 'assistant',
         content: JSON.stringify({
           command: plan.command,
+          tool: plan.tool,
           reasoning: plan.reasoning,
           reply: plan.reply,
           files: plan.files,
@@ -62,21 +63,27 @@ export class AgentLoop {
         }),
       });
 
-      if (plan.done || !plan.command) {
+      if (plan.done || (!plan.command && !plan.tool)) {
         logger.info(
           `Agent finished at iteration ${String(iteration)}. Reply: "${plan.reply.slice(0, 100)}"`,
         );
         return { reply: plan.reply || 'Done.', files: allFiles };
       }
 
-      logger.info(`Executing: ${plan.command}`);
-      const result = await this.executor.run(plan.command, settings);
+      const actionLabel = plan.tool ? `tool:${plan.tool.tool}` : plan.command;
+      logger.info(`Executing: ${actionLabel}`);
+      const result = await this.toolRunner.execute(plan.command, plan.tool, settings);
+
+      // screenshot tool returns the file path in stdout — auto-add to files
+      if (plan.tool?.tool === 'screenshot' && result.exitCode === 0 && result.stdout) {
+        allFiles.push(result.stdout);
+      }
 
       const status = result.exitCode === 0 ? '✓' : '✗';
       const output = result.stdout || result.stderr || '(no output)';
       const resultSummary = `${status} ${result.command}\n${output}`;
 
-      logger.info(`Command result:\n${resultSummary}`);
+      logger.info(`Result:\n${resultSummary}`);
 
       messages.push({
         role: 'user',

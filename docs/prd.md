@@ -271,13 +271,17 @@ Rules:
 - Files merged from both plan and summarise steps
 - Binary output detection prevents token overflow
 
-### Phase 5 – GUI Control (Mouse, Keyboard, Apps)
+### Phase 5 – GUI Control (Mouse, Keyboard, Apps) ✅
 
-- Puppeteer-based screen control
-- Mouse movement and clicks
-- Keyboard input
-- Screenshot capture and send
-- App launching via shell + GUI interaction
+- ToolRunner dispatches between shell commands and GUI tools
+- Screenshot capture via macOS `screencapture` — auto-sent as WhatsApp media
+- Mouse move and click via Python3 Quartz framework
+- Keyboard typing via AppleScript (`System Events`)
+- Open URL via macOS `open` command
+- Open app via macOS `open -a` command
+- Tools: `screenshot`, `mouse_click`, `keyboard_type`, `open_url`, `open_app`
+- Planner can mix shell commands and tools freely across iterations
+- Screenshots stored in `~/.zeta/screenshots/`
 
 ### Phase 6 – Governor + Decision Engine
 

@@ -10,18 +10,22 @@ How messages flow from WhatsApp to execution and back.
 WhatsApp message
       │
       ▼
-┌──────────┐     ┌─────────────────────────────────────────────────┐
-│TaskQueue │     │ AgentLoop (per task)                            │
-│ (SQLite) │     │                                                 │
-│          │     │   ┌─────────┐    ┌──────────┐                   │
-│ FIFO     ├────►│   │ Planner ├───►│ Executor │                   │
-│ one task │     │   │ (o3-mini)│◄───┤ (shell)  │  ◄── iterates    │
-│ at a time│     │   └─────────┘    └──────────┘      until done   │
-│          │◄────┤        result + files               or max iter │
-└──────────┘     └─────────────────────────────────────────────────┘
-      │
-      ▼
-WhatsApp reply
+┌──────────┐     ┌──────────────────────────────────────────────────────────┐
+│TaskQueue │     │ AgentLoop (per task)                                     │
+│ (SQLite) │     │                                                          │
+│          │     │   ┌─────────┐    ┌────────────┐                          │
+│ FIFO     ├────►│   │ Planner ├───►│ ToolRunner │  ◄── iterates            │
+│ one task │     │   │ (o3-mini)│◄───┤            │      until done          │
+│ at a time│     │   └─────────┘    │ ┌────────┐ │      or max iter         │
+│          │◄────┤        result    │ │ shell  │ │                          │
+└──────────┘     │        + files   │ │ screen │ │                          │
+      │          │                  │ │ mouse  │ │                          │
+      ▼          │                  │ │ keybd  │ │                          │
+WhatsApp reply   │                  │ │ url    │ │                          │
+                 │                  │ │ app    │ │                          │
+                 │                  │ └────────┘ │                          │
+                 │                  └────────────┘                          │
+                 └──────────────────────────────────────────────────────────┘
 ```
 
 ---

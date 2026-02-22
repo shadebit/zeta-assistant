@@ -27,8 +27,22 @@ export interface CommandResult {
   readonly exitCode: number;
 }
 
+export type ToolName =
+  | 'shell'
+  | 'screenshot'
+  | 'mouse_click'
+  | 'keyboard_type'
+  | 'open_url'
+  | 'open_app';
+
+export interface ToolAction {
+  readonly tool: ToolName;
+  readonly params: Record<string, unknown>;
+}
+
 export interface PlannerOutput {
   readonly command: string;
+  readonly tool: ToolAction | null;
   readonly reasoning: string;
   readonly reply: string;
   readonly files: readonly string[];
