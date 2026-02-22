@@ -1,3 +1,10 @@
+# v0.14.0
+
+**Released:** 2026-02-22
+
+- Merge remote-tracking branch 'origin/main' (7f09e8a)
+- fix: ignore non-self messages and validate message body in WhatsApp client (fb59f50)
+
 # v0.13.0
 
 **Released:** 2026-02-22
