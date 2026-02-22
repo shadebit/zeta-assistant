@@ -1,3 +1,9 @@
+# v0.11.0
+
+**Released:** 2026-02-22
+
+- refactor: enhance planner output handling and add file attachments support (aa2f7fc)
+
 # v0.10.0
 
 **Released:** 2026-02-22
