@@ -29,6 +29,7 @@ export class WhatsappClient {
   private readonly sessionPath: string;
   // Tracks messages sent by the bot itself to prevent re-processing and infinite loops.
   private readonly sentByBot = new Set<string>();
+  private readonly MESSAGE_PREFIX = 'Zeta: ';
   private isReady = false;
 
   constructor(options: WhatsappClientOptions) {
@@ -181,15 +182,8 @@ export class WhatsappClient {
           return;
         }
 
-        if (!msg.body) {
-          return;
-        }
-
-        if (this.sentByBot.has(msg.body)) {
-          this.sentByBot.delete(msg.body);
-          return;
-        }
-
+        // Audio check must come before the empty body guard because
+        // audio messages (ptt/audio) have an empty body.
         if (msg.hasMedia && (msg.type === 'ptt' || msg.type === 'audio')) {
           void msg
             .downloadMedia()
@@ -204,6 +198,18 @@ export class WhatsappClient {
           return;
         }
 
+        if (!msg.body) {
+          return;
+        }
+
+        // Prevents the bot's own replies from being re-processed as new input.
+        // When we send to our own number, WhatsApp echoes it back via message_create,
+        // which would otherwise trigger an infinite loop: reply → echo → plan → reply → ...
+        if (this.sentByBot.has(msg.body)) {
+          this.sentByBot.delete(msg.body);
+          return;
+        }
+
         this.logger.info(`Message from owner: ${msg.body}`);
         onMessage?.(msg.from, msg.body);
       },
@@ -211,16 +217,18 @@ export class WhatsappClient {
   }
 
   async sendMessage(to: string, text: string): Promise<void> {
-    this.sentByBot.add(text);
-    await this.client.sendMessage(to, text);
+    const formatted = `${this.MESSAGE_PREFIX}${text}`;
+    this.sentByBot.add(formatted);
+    await this.client.sendMessage(to, formatted);
   }
 
   async sendMedia(to: string, filePath: string, caption?: string): Promise<void> {
     const media = MessageMedia.fromFilePath(filePath);
-    if (caption) {
-      this.sentByBot.add(caption);
+    const formatted = caption ? `${this.MESSAGE_PREFIX}${caption}` : '';
+    if (formatted) {
+      this.sentByBot.add(formatted);
     }
-    await this.client.sendMessage(to, media, { caption: caption || undefined });
+    await this.client.sendMessage(to, media, { caption: formatted || undefined });
   }
 }
 
