@@ -10,7 +10,12 @@ import type { ZetaConfig } from '../types/index.js';
 // whatsapp-web.js exports Client as a CJS value, not a type — need InstanceType.
 type WhatsappWebClient = InstanceType<typeof Client>;
 
-export type MessageHandler = (sender: string, body: string) => void;
+export interface AudioData {
+  readonly data: string;
+  readonly mimetype: string;
+}
+
+export type MessageHandler = (sender: string, body: string, audio?: AudioData) => void;
 
 export interface WhatsappClientOptions {
   readonly config: ZetaConfig;
@@ -155,22 +160,47 @@ export class WhatsappClient {
       this.logger.warn(`Disconnected: ${reason}`);
     });
 
-    this.client.on('message_create', (msg: { from: string; fromMe: boolean; body: string }) => {
-      if (!msg.fromMe || !msg.body) {
-        return;
-      }
+    this.client.on(
+      'message_create',
+      (msg: {
+        from: string;
+        fromMe: boolean;
+        body: string;
+        hasMedia: boolean;
+        type: string;
+        downloadMedia: () => Promise<{ data: string; mimetype: string }>;
+      }) => {
+        if (!msg.fromMe) {
+          return;
+        }
 
-      // Since we send messages to our own number, bot replies arrive back as new incoming
-      // messages (owner → OpenAI → reply → WhatsApp → same number → triggers onMessage again).
-      // We track bot-sent texts in sentByBot to break this infinite loop.
-      if (this.sentByBot.has(msg.body)) {
-        this.sentByBot.delete(msg.body);
-        return;
-      }
+        if (this.sentByBot.has(msg.body)) {
+          this.sentByBot.delete(msg.body);
+          return;
+        }
 
-      this.logger.info(`Message from owner: ${msg.body}`);
-      onMessage?.(msg.from, msg.body);
-    });
+        if (msg.hasMedia && (msg.type === 'ptt' || msg.type === 'audio')) {
+          void msg
+            .downloadMedia()
+            .then((media) => {
+              this.logger.info('Audio message from owner received.');
+              onMessage?.(msg.from, '', { data: media.data, mimetype: media.mimetype });
+            })
+            .catch((err: unknown) => {
+              const errMsg = err instanceof Error ? err.message : String(err);
+              this.logger.error(`Failed to download audio: ${errMsg}`);
+            });
+          return;
+        }
+
+        if (!msg.body) {
+          return;
+        }
+
+        this.logger.info(`Message from owner: ${msg.body}`);
+        onMessage?.(msg.from, msg.body);
+      },
+    );
   }
 
   async sendMessage(to: string, text: string): Promise<void> {

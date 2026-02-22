@@ -29,5 +29,6 @@ export function initConfig(): ZetaConfig {
     whatsappSessionPath: join(zetaDir, 'whatsapp-session'),
     logsDir: join(zetaDir, 'logs'),
     scriptsDir: join(zetaDir, 'scripts'),
+    dbPath: join(zetaDir, 'tasks.db'),
   };
 }

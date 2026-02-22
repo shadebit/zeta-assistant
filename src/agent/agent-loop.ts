@@ -18,10 +18,14 @@ export class AgentLoop {
     this.planner = new Planner(apiKey);
   }
 
-  async run(userMessage: string): Promise<AgentResponse> {
+  async run(userMessage: string, previousContext?: string): Promise<AgentResponse> {
     logger.info(`Running agent loop for: "${userMessage}"`);
 
-    const plan = await this.planner.plan(userMessage);
+    const contextPrefix = previousContext
+      ? `Previous task context:\n${previousContext}\n\nNew request: `
+      : '';
+
+    const plan = await this.planner.plan(`${contextPrefix}${userMessage}`);
     logger.info(`Reasoning: ${plan.reasoning}`);
 
     if (plan.commands.length === 0) {

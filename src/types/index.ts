@@ -3,6 +3,7 @@ export interface ZetaConfig {
   readonly whatsappSessionPath: string;
   readonly logsDir: string;
   readonly scriptsDir: string;
+  readonly dbPath: string;
 }
 
 export interface CliArgs {

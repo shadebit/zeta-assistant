@@ -7,6 +7,8 @@ import type { WhatsappClient } from './whatsapp/index.js';
 import { parseCliArgs, getHelpText } from './utils/index.js';
 import { WinstonLogger, initLoggerTransports } from './logger/index.js';
 import { AgentLoop } from './agent/index.js';
+import { TaskQueue } from './queue/index.js';
+import { AudioTranscriber } from './transcriber/index.js';
 
 const logger = new WinstonLogger('Main');
 
@@ -26,9 +28,10 @@ function requirePlannerApiKey(plannerApiKey: string | null): string {
   return plannerApiKey;
 }
 
-function initGracefulShutdown(whatsapp: WhatsappClient): void {
+function initGracefulShutdown(whatsapp: WhatsappClient, taskQueue: TaskQueue): void {
   const shutdown = async (signal: string): Promise<void> => {
     logger.info(`Received ${signal}. Shutting down gracefully...`);
+    taskQueue.close();
     await whatsapp.destroy();
     process.exit(0);
   };
@@ -58,26 +61,44 @@ async function main(): Promise<void> {
   const config = initConfig();
   initLoggerTransports(config.logsDir);
 
+  const taskQueue = new TaskQueue(config.dbPath);
+  const transcriber = new AudioTranscriber(apiKey, config.logsDir);
+
   const whatsapp = await initWhatsapp({
     config,
     resetSession: args.resetWhatsapp,
-    onMessage: (sender: string, body: string) => {
-      agentLoop
-        .run(body)
-        .then(async (response) => {
-          for (const filePath of response.files) {
-            await whatsapp.sendMedia(sender, filePath);
-          }
-          await whatsapp.sendMessage(sender, response.reply);
-        })
-        .catch((error: unknown) => {
-          const message = error instanceof Error ? error.message : String(error);
-          logger.error(`Agent loop error: ${message}`);
-        });
+    onMessage: (sender, body, audio) => {
+      if (audio) {
+        void transcriber
+          .transcribe(audio.data, audio.mimetype)
+          .then((text) => {
+            taskQueue.enqueue(sender, text);
+          })
+          .catch((err: unknown) => {
+            const errMsg = err instanceof Error ? err.message : String(err);
+            logger.error(`Transcription error: ${errMsg}`);
+          });
+        return;
+      }
+
+      if (body) {
+        taskQueue.enqueue(sender, body);
+      }
     },
   });
 
-  initGracefulShutdown(whatsapp);
+  taskQueue.setProcessor(async (task) => {
+    const response = await agentLoop.run(task.message, task.previous_context || undefined);
+
+    for (const filePath of response.files) {
+      await whatsapp.sendMedia(task.sender, filePath);
+    }
+    await whatsapp.sendMessage(task.sender, response.reply);
+
+    return `User asked: ${task.message}\nZeta replied: ${response.reply}`;
+  });
+
+  initGracefulShutdown(whatsapp, taskQueue);
 }
 
 main().catch((error: unknown) => {
