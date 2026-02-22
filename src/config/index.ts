@@ -1,1 +1,7 @@
-export { initConfig, ensureDirectory, ensureZetaDirectories } from './config-loader.js';
+export {
+  initConfig,
+  ensureDirectory,
+  ensureZetaDirectories,
+  loadSettings,
+  saveSettings,
+} from './config-loader.js';

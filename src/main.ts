@@ -54,12 +54,13 @@ async function main(): Promise<void> {
   }
 
   const apiKey = requirePlannerApiKey(args.plannerApiKey);
-  const agentLoop = new AgentLoop(apiKey);
 
   logger.info(`Zeta Assistant v${getVersion()} starting...`);
 
   const config = initConfig();
   initLoggerTransports(config.logsDir);
+
+  const agentLoop = new AgentLoop(apiKey, config.settingsPath);
 
   const taskQueue = new TaskQueue(config.dbPath);
   const transcriber = new AudioTranscriber(apiKey, config.logsDir);

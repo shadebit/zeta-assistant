@@ -4,6 +4,11 @@ export interface ZetaConfig {
   readonly logsDir: string;
   readonly scriptsDir: string;
   readonly dbPath: string;
+  readonly settingsPath: string;
+}
+
+export interface ZetaSettings {
+  readonly maxIterations: number;
 }
 
 export interface CliArgs {
@@ -21,8 +26,9 @@ export interface CommandResult {
 }
 
 export interface PlannerOutput {
-  readonly commands: readonly string[];
+  readonly command: string;
   readonly reasoning: string;
   readonly reply: string;
   readonly files: readonly string[];
+  readonly done: boolean;
 }

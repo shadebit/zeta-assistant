@@ -4,10 +4,10 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import OpenAI from 'openai';
+import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import { WinstonLogger } from '../logger/index.js';
 import type { PlannerOutput } from '../types/index.js';
 
-// o3-mini is the best reasoning/planning model — ideal for batching multi-step actions.
 const PLANNER_MODEL = 'o3-mini';
 
 function loadSoulTemplate(): string {
@@ -16,7 +16,7 @@ function loadSoulTemplate(): string {
   return readFileSync(soulPath, 'utf-8');
 }
 
-function buildSystemPrompt(): string {
+export function buildSystemPrompt(): string {
   const home = homedir();
   return loadSoulTemplate()
     .replaceAll('{{platform}}', platform)
@@ -33,16 +33,13 @@ export class Planner {
     this.client = new OpenAI({ apiKey });
   }
 
-  async plan(userMessage: string): Promise<PlannerOutput> {
-    logger.info(`Planning for: ${userMessage}`);
+  async next(messages: ChatCompletionMessageParam[]): Promise<PlannerOutput> {
+    logger.info(`Planner call with ${String(messages.length)} message(s)...`);
 
     const response = await this.client.chat.completions.create({
       model: PLANNER_MODEL,
       response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: buildSystemPrompt() },
-        { role: 'user', content: userMessage },
-      ],
+      messages,
     });
 
     const raw = response.choices[0]?.message?.content ?? '{}';
@@ -50,42 +47,24 @@ export class Planner {
 
     return parsePlannerOutput(raw);
   }
-
-  async summarise(userMessage: string, commandResults: string): Promise<PlannerOutput> {
-    logger.info('Summarising command results...');
-
-    const response = await this.client.chat.completions.create({
-      model: PLANNER_MODEL,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: buildSystemPrompt() },
-        { role: 'user', content: userMessage },
-        {
-          role: 'user',
-          content: `Command results:\n${commandResults}\n\nBased on these results, return JSON with "reply" (the final answer to the user) and "files" (absolute paths of files to send as attachments, if any). No more commands needed.`,
-        },
-      ],
-    });
-
-    const raw = response.choices[0]?.message?.content?.trim() ?? '{}';
-    logger.info(`Summarise raw response: ${raw}`);
-
-    return parsePlannerOutput(raw);
-  }
 }
 
 function parsePlannerOutput(raw: string): PlannerOutput {
   try {
-    const parsed = JSON.parse(raw) as Partial<PlannerOutput>;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+
+    const command = typeof parsed['command'] === 'string' ? parsed['command'] : '';
+    const done = typeof parsed['done'] === 'boolean' ? parsed['done'] : command === '';
 
     return {
-      commands: Array.isArray(parsed.commands) ? parsed.commands : [],
-      reasoning: typeof parsed.reasoning === 'string' ? parsed.reasoning : '',
-      reply: typeof parsed.reply === 'string' ? parsed.reply : '',
-      files: Array.isArray(parsed.files) ? parsed.files : [],
+      command,
+      reasoning: typeof parsed['reasoning'] === 'string' ? parsed['reasoning'] : '',
+      reply: typeof parsed['reply'] === 'string' ? parsed['reply'] : '',
+      files: Array.isArray(parsed['files']) ? (parsed['files'] as string[]) : [],
+      done,
     };
   } catch {
     logger.warn(`Failed to parse planner output, treating as plain reply: ${raw}`);
-    return { commands: [], reasoning: '', reply: raw, files: [] };
+    return { command: '', reasoning: '', reply: raw, files: [], done: true };
   }
 }

@@ -21,11 +21,7 @@ function isBinaryOutput(text: string): boolean {
 export class CommandExecutor {
   private readonly logger = new WinstonLogger(CommandExecutor.name);
 
-  async run(commands: readonly string[]): Promise<CommandResult[]> {
-    return Promise.all(commands.map((cmd) => this.runOne(cmd)));
-  }
-
-  private async runOne(command: string): Promise<CommandResult> {
+  async run(command: string): Promise<CommandResult> {
     this.logger.warn(`Executing command: ${command}`);
 
     try {

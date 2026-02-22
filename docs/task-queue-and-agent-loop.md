@@ -10,15 +10,15 @@ How messages flow from WhatsApp to execution and back.
 WhatsApp message
       │
       ▼
-┌──────────┐     ┌───────────────────────────────────────────────┐
-│TaskQueue │     │ AgentLoop (per task)                          │
-│ (SQLite) │     │                                               │
-│          │     │  ┌─────────┐   ┌──────────┐   ┌───────────┐  │
-│ FIFO     ├────►│  │ Planner ├──►│ Executor ├──►│ Summarise │  │
-│ one task │     │  │ (o3-mini)│   │ (shell)  │   │ (o3-mini) │  │
-│ at a time│     │  └─────────┘   └──────────┘   └───────────┘  │
-│          │◄────┤        result + files                         │
-└──────────┘     └───────────────────────────────────────────────┘
+┌──────────┐     ┌─────────────────────────────────────────────────┐
+│TaskQueue │     │ AgentLoop (per task)                            │
+│ (SQLite) │     │                                                 │
+│          │     │   ┌─────────┐    ┌──────────┐                   │
+│ FIFO     ├────►│   │ Planner ├───►│ Executor │                   │
+│ one task │     │   │ (o3-mini)│◄───┤ (shell)  │  ◄── iterates    │
+│ at a time│     │   └─────────┘    └──────────┘      until done   │
+│          │◄────┤        result + files               or max iter │
+└──────────┘     └─────────────────────────────────────────────────┘
       │
       ▼
 WhatsApp reply
@@ -45,113 +45,78 @@ tasks
 
 ---
 
-## Why It's Called an "Agent Loop"
+## The Agent Loop — A True Iterative Loop
 
-A simple bot would: receive message → run one command → reply. That's a straight line, not a loop.
-
-Zeta's agent loop exists because **a single user request often requires multiple LLM calls**: the planner needs to think, execute, observe the results, and sometimes the summariser produces follow-up insights or file attachments. The current flow inside `AgentLoop.run()` is:
+The name "agent loop" is literal. For each task, the agent iterates: **plan one command → execute → observe the result → decide: continue or done?** The planner sees the full conversation history that grows with each iteration, so it always knows what happened before.
 
 ```
 User message
       │
       ▼
- ┌─────────┐
- │ Planner │──── "What commands do I need?"
- └────┬────┘
-      │ returns { commands, reasoning, reply, files }
-      │
-      ├── commands.length === 0 ?
-      │         │
-      │    YES: return reply immediately (no shell needed)
-      │
-      │    NO:
-      ▼
- ┌──────────┐
- │ Executor │──── runs all commands in parallel
- └────┬─────┘
-      │ returns CommandResult[]
-      │
-      ▼
- ┌───────────┐
- │ Summarise │──── "Given these results, what's the final answer?"
- └────┬──────┘
-      │ returns { reply, files }
-      │
-      ▼
- WhatsApp reply + optional file attachments
+ ┌─────────────────────────────────────────────────────────┐
+ │                    ITERATION 1                          │
+ │                                                         │
+ │  messages = [system, user]                              │
+ │                                                         │
+ │  Planner ──► { command: "...", done: false }            │
+ │       │                                                 │
+ │       ▼                                                 │
+ │  Executor ──► runs single command ──► result            │
+ │       │                                                 │
+ │       ▼                                                 │
+ │  messages += [assistant(plan), user(result)]            │
+ └────────────────────────┬────────────────────────────────┘
+                          │
+                          ▼
+ ┌─────────────────────────────────────────────────────────┐
+ │                    ITERATION 2                          │
+ │                                                         │
+ │  messages = [system, user, assistant, user(result)]     │
+ │                                                         │
+ │  Planner ──► { command: "...", done: false }            │
+ │       │                                                 │
+ │       ▼                                                 │
+ │  Executor ──► runs single command ──► result            │
+ │       │                                                 │
+ │       ▼                                                 │
+ │  messages += [assistant(plan), user(result)]            │
+ └────────────────────────┬────────────────────────────────┘
+                          │
+                          ▼
+ ┌─────────────────────────────────────────────────────────┐
+ │                    ITERATION 3                          │
+ │                                                         │
+ │  messages = [system, user, asst, result, asst, result]  │
+ │                                                         │
+ │  Planner ──► { command: "", reply: "Zeta: ...",         │
+ │               done: true }                              │
+ │                                                         │
+ │  ✅ Loop exits. Reply sent to WhatsApp.                 │
+ └─────────────────────────────────────────────────────────┘
 ```
 
-That's **two LLM calls** (plan + summarise) and **N shell commands** for a single user message. The name "agent loop" reflects this multi-step reasoning cycle — and in future phases, it will become a true iterative loop where the summariser can request additional commands.
+### Key design decisions
+
+- **One command per iteration.** Chain dependent steps with `&&` inside the single command string (e.g., `cd /tmp/repo && npm install && npm test`). This guarantees sequential execution and avoids the old parallel-execution race condition.
+- **Conversation history grows.** Each iteration appends the plan (as `assistant`) and the command result (as `user`) to the `messages[]` array. The planner always has the full context of what it already tried and what happened.
+- **Max iterations cap.** Controlled by `~/.zeta/settings.json` → `maxIterations` (default: 5). If the limit is hit, the system injects a final message asking the planner to summarise what it has. The user can ask the assistant to change this value at runtime.
+- **The planner decides when it's done.** It sets `"done": true` when the reply is ready. If `"done": false`, the loop executes the command and feeds the result back.
+
+### Settings file (`~/.zeta/settings.json`)
+
+```json
+{
+  "maxIterations": 5
+}
+```
+
+The user can ask Zeta to adjust this via WhatsApp (e.g., "increase max iterations to 10"). The agent reads the file fresh at the start of each task, so changes take effect on the next task.
 
 ---
 
-## Multi-Command Example: "Find the largest log file and show me its last 20 lines"
+## Example: "Clone my repo, install dependencies, and run the tests"
 
-This single user request needs **2 commands** to resolve. Here's the full trace:
-
-```
-User (WhatsApp): "Find the largest log file and show me its last 20 lines"
-      │
-      ▼
-━━━ AgentLoop.run() ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  ┌─ STEP 1: Planner ──────────────────────────────────────────────────────┐
-  │                                                                        │
-  │  Input: "Find the largest log file and show me its last 20 lines"     │
-  │                                                                        │
-  │  o3-mini reasons:                                                      │
-  │    "I need to find the largest log, then tail it.                      │
-  │     I can do both in a pipeline, or issue two commands.                │
-  │     I'll use two commands to keep it readable."                        │
-  │                                                                        │
-  │  Output:                                                               │
-  │  {                                                                     │
-  │    "commands": [                                                       │
-  │      "find /var/log -name '*.log' -type f -exec ls -lS {} + | head", │
-  │      "tail -20 /var/log/syslog"                                       │
-  │    ],                                                                  │
-  │    "reasoning": "First find the largest log, then show its tail.",    │
-  │    "reply": ""                                                         │
-  │  }                                                                     │
-  └────────────────────────────────────────────────────────────────────────┘
-        │
-        │  2 commands
-        ▼
-  ┌─ STEP 2: Executor (parallel) ─────────────────────────────────────────┐
-  │                                                                        │
-  │  cmd[0]: find /var/log -name '*.log' ...                              │
-  │          → exit 0, stdout: "-rw-r-- 48M /var/log/syslog ..."         │
-  │                                                                        │
-  │  cmd[1]: tail -20 /var/log/syslog                                     │
-  │          → exit 0, stdout: "Feb 22 10:03:12 kernel: ..."             │
-  │                                                                        │
-  └────────────────────────────────────────────────────────────────────────┘
-        │
-        │  formatted results
-        ▼
-  ┌─ STEP 3: Summarise ───────────────────────────────────────────────────┐
-  │                                                                        │
-  │  o3-mini receives the original question + command outputs              │
-  │                                                                        │
-  │  Output:                                                               │
-  │  {                                                                     │
-  │    "reply": "Zeta: The largest log is /var/log/syslog (48MB).         │
-  │              Here are the last 20 lines:\n\nFeb 22 10:03:12 ...",     │
-  │    "files": []                                                         │
-  │  }                                                                     │
-  └────────────────────────────────────────────────────────────────────────┘
-        │
-        ▼
-  WhatsApp reply: "Zeta: The largest log is /var/log/syslog (48MB)..."
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
----
-
-## Multi-Command Example: "Clone my repo, install dependencies, and run the tests"
-
-Three commands, all planned at once by the LLM:
+This task needs 3 sequential steps. In the old parallel model, it would fail. The iterative loop handles it naturally:
 
 ```
 User (WhatsApp): "Clone my repo, install deps, and run the tests"
@@ -159,70 +124,199 @@ User (WhatsApp): "Clone my repo, install deps, and run the tests"
       ▼
 ━━━ AgentLoop.run() ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  ┌─ STEP 1: Planner ──────────────────────────────────────────────────────┐
+  ┌─ ITERATION 1 ──────────────────────────────────────────────────────────┐
   │                                                                        │
-  │  o3-mini reasons:                                                      │
-  │    "These three steps are sequential — clone must finish before        │
-  │     install, and install before test. I'll chain them."               │
+  │  messages: [system, user("Clone my repo, install deps, run tests")]   │
   │                                                                        │
-  │  Output:                                                               │
+  │  Planner returns:                                                      │
   │  {                                                                     │
-  │    "commands": [                                                       │
-  │      "cd /tmp && git clone https://github.com/user/repo.git",         │
-  │      "cd /tmp/repo && npm install",                                   │
-  │      "cd /tmp/repo && npm test"                                       │
-  │    ],                                                                  │
-  │    "reasoning": "Clone, install, then test. Chained sequentially.",   │
-  │    "reply": ""                                                         │
+  │    "command": "cd /tmp && git clone https://github.com/user/repo.git",│
+  │    "reasoning": "First clone the repo. I'll install and test after.", │
+  │    "done": false                                                       │
+  │  }                                                                     │
+  │                                                                        │
+  │  Executor runs → exit 0: "Cloning into 'repo'..."                    │
+  │                                                                        │
+  │  messages += [assistant(plan), user("✓ git clone...\nCloning...")]    │
+  └────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+  ┌─ ITERATION 2 ──────────────────────────────────────────────────────────┐
+  │                                                                        │
+  │  Planner sees: clone succeeded.                                        │
+  │                                                                        │
+  │  Planner returns:                                                      │
+  │  {                                                                     │
+  │    "command": "cd /tmp/repo && npm install",                           │
+  │    "reasoning": "Clone done. Now install dependencies.",              │
+  │    "done": false                                                       │
+  │  }                                                                     │
+  │                                                                        │
+  │  Executor runs → exit 0: "added 312 packages..."                      │
+  │                                                                        │
+  │  messages += [assistant(plan), user("✓ npm install\nadded 312...")]   │
+  └────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+  ┌─ ITERATION 3 ──────────────────────────────────────────────────────────┐
+  │                                                                        │
+  │  Planner sees: install succeeded.                                      │
+  │                                                                        │
+  │  Planner returns:                                                      │
+  │  {                                                                     │
+  │    "command": "cd /tmp/repo && npm test",                              │
+  │    "reasoning": "Dependencies installed. Now run the tests.",          │
+  │    "done": false                                                       │
+  │  }                                                                     │
+  │                                                                        │
+  │  Executor runs → exit 0: "Tests: 42 passed, 0 failed"                │
+  │                                                                        │
+  │  messages += [assistant(plan), user("✓ npm test\nTests: 42...")]      │
+  └────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+  ┌─ ITERATION 4 ──────────────────────────────────────────────────────────┐
+  │                                                                        │
+  │  Planner sees: all three steps succeeded.                              │
+  │                                                                        │
+  │  Planner returns:                                                      │
+  │  {                                                                     │
+  │    "command": "",                                                      │
+  │    "reply": "Zeta: Repo cloned, 312 packages installed, all 42       │
+  │              tests passed.",                                           │
+  │    "done": true                                                        │
   │  }                                                                     │
   └────────────────────────────────────────────────────────────────────────┘
         │
-        │  3 commands (executed in parallel — each uses cd so they
-        │  are self-contained, but npm install may fail if clone
-        │  hasn't finished yet — see "Current Limitation" below)
         ▼
-  ┌─ STEP 2: Executor (parallel) ─────────────────────────────────────────┐
-  │                                                                        │
-  │  cmd[0]: cd /tmp && git clone ...                                     │
-  │          → exit 0, "Cloning into 'repo'..."                           │
-  │                                                                        │
-  │  cmd[1]: cd /tmp/repo && npm install                                  │
-  │          → exit 1, "/tmp/repo: No such file or directory"             │
-  │          ⚠ failed because clone hadn't finished yet                    │
-  │                                                                        │
-  │  cmd[2]: cd /tmp/repo && npm test                                     │
-  │          → exit 1, "/tmp/repo: No such file or directory"             │
-  │          ⚠ same issue                                                  │
-  │                                                                        │
-  └────────────────────────────────────────────────────────────────────────┘
-        │
-        ▼
-  ┌─ STEP 3: Summarise ───────────────────────────────────────────────────┐
-  │                                                                        │
-  │  o3-mini sees the failures and explains them clearly:                  │
-  │                                                                        │
-  │  Output:                                                               │
-  │  {                                                                     │
-  │    "reply": "Zeta: The repo was cloned successfully, but install      │
-  │              and test failed because they ran before cloning           │
-  │              finished. Try asking again — the repo is now available.", │
-  │    "files": []                                                         │
-  │  }                                                                     │
-  └────────────────────────────────────────────────────────────────────────┘
-        │
-        ▼
-  WhatsApp reply with the explanation
+  WhatsApp reply: "Zeta: Repo cloned, 312 packages installed,
+                   all 42 tests passed."
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
 
-> **Current limitation:** Commands are executed in parallel. The planner _should_ chain dependent commands using `&&` within a single command string (e.g., `git clone ... && cd repo && npm install && npm test`) instead of splitting them into separate entries. A smarter planner prompt or a future sequential execution mode will address this.
+  LLM calls: 4 (plan + observe + observe + final)
+  Shell commands: 3 (clone, install, test)
+  Total iterations: 4
+```
 
 ---
 
-## 5 Messages in a Row: Context Chaining
+## Example: "Find the largest log file and show me its last 20 lines"
 
-Now zoom out from a single agent loop to the **queue level**. The user sends 5 messages rapidly. Messages 1 and 5 are related (both about the same file):
+This task needs to **discover** a file first, then read it. The planner can't know the filename in advance.
+
+```
+User (WhatsApp): "Find the largest log file and show me its last 20 lines"
+      │
+      ▼
+━━━ AgentLoop.run() ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ┌─ ITERATION 1 ──────────────────────────────────────────────────────────┐
+  │                                                                        │
+  │  Planner returns:                                                      │
+  │  {                                                                     │
+  │    "command": "find /var/log -name '*.log' -type f                    │
+  │                -exec ls -lS {} + 2>/dev/null | head -5",              │
+  │    "reasoning": "First discover which log file is the largest.",      │
+  │    "done": false                                                       │
+  │  }                                                                     │
+  │                                                                        │
+  │  Executor → exit 0: "-rw-r-- 48M /var/log/syslog ..."                │
+  └────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+  ┌─ ITERATION 2 ──────────────────────────────────────────────────────────┐
+  │                                                                        │
+  │  Planner sees: /var/log/syslog is the largest at 48M.                  │
+  │                                                                        │
+  │  Planner returns:                                                      │
+  │  {                                                                     │
+  │    "command": "tail -20 /var/log/syslog",                              │
+  │    "reasoning": "Now show the last 20 lines of the largest log.",     │
+  │    "done": false                                                       │
+  │  }                                                                     │
+  │                                                                        │
+  │  Executor → exit 0: "Feb 22 10:03:12 kernel: ..."                    │
+  └────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+  ┌─ ITERATION 3 ──────────────────────────────────────────────────────────┐
+  │                                                                        │
+  │  Planner returns:                                                      │
+  │  {                                                                     │
+  │    "command": "",                                                      │
+  │    "reply": "Zeta: The largest log is /var/log/syslog (48MB).         │
+  │              Here are the last 20 lines:\n\nFeb 22 10:03:12 ...",     │
+  │    "done": true                                                        │
+  │  }                                                                     │
+  └────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+  WhatsApp reply
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  LLM calls: 3
+  Shell commands: 2
+  Total iterations: 3
+```
+
+This example shows why the loop matters: the planner could not have known to run `tail -20 /var/log/syslog` without first discovering the filename. The iterative model lets it observe and react.
+
+---
+
+## Example: Command Fails → Planner Retries
+
+```
+  ┌─ ITERATION 1 ──────────────────────────────────────────────────────────┐
+  │  Planner: { "command": "docker ps", "done": false }                   │
+  │  Executor → exit 127: "docker: command not found"                     │
+  └────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+  ┌─ ITERATION 2 ──────────────────────────────────────────────────────────┐
+  │  Planner sees the error and adapts:                                    │
+  │  {                                                                     │
+  │    "command": "",                                                      │
+  │    "reply": "Zeta: Docker is not installed on this machine.",          │
+  │    "done": true                                                        │
+  │  }                                                                     │
+  └────────────────────────────────────────────────────────────────────────┘
+```
+
+Instead of crashing or returning a raw error, the planner observes the failure, reasons about it, and gives a human-friendly reply.
+
+---
+
+## Max Iterations Safety Cap
+
+If the planner keeps requesting commands without setting `done: true`, the loop enforces a hard limit:
+
+```
+  ITERATION 1 → command → result
+  ITERATION 2 → command → result
+  ITERATION 3 → command → result
+  ITERATION 4 → command → result
+  ITERATION 5 → command → result
+        │
+        ▼
+  MAX ITERATIONS REACHED (5)
+        │
+        ▼
+  System injects: "Max iterations reached. Summarise everything."
+        │
+        ▼
+  Planner forced to return { done: true, reply: "Zeta: ..." }
+        │
+        ▼
+  WhatsApp reply with partial results
+```
+
+---
+
+## 5 Messages in a Row: Context Chaining Between Tasks
+
+Zoom out from a single agent loop to the **queue level**. The user sends 5 messages rapidly. Messages 1 and 5 are related (both about the same file):
 
 ```
 Message 1: "Create a file called notes.txt with 'hello world'"
@@ -249,54 +343,44 @@ t=0s    All 5 messages arrive almost simultaneously
 
 t=0s    processNext() picks task #1
         previous_context = "" (no completed tasks yet)
+
         ┌──────────────────────────────────────────────────────┐
-        │ AgentLoop for Task #1                                │
+        │ AgentLoop for Task #1 (1 iteration)                  │
         │                                                      │
-        │ Planner → ["echo 'hello world' > ~/notes.txt"]      │
-        │ Executor → runs it → exit 0                          │
-        │ Summarise → "Created ~/notes.txt with 'hello world'"│
+        │ iter 1: command = "echo 'hello world' > ~/notes.txt" │
+        │         → exit 0                                     │
+        │ iter 2: done=true, reply = "Created notes.txt"       │
         └──────────────────────────────────────────────────────┘
 
-t=4s    Task #1 done. result = "Created ~/notes.txt with 'hello world'"
+t=4s    Task #1 done.
+        result = "User asked: Create notes.txt...\nZeta replied: ..."
         processNext() picks task #2
         previous_context = result of #1
 
         ┌──────────────────────────────────────────────────────┐
-        │ AgentLoop for Task #2                                │
+        │ AgentLoop for Task #2 (1 iteration)                  │
         │                                                      │
-        │ Planner → ["df -h"]                                  │
-        │ Executor → exit 0, "120GB free..."                   │
-        │ Summarise → "Zeta: You have 120GB free on disk."     │
+        │ iter 1: command = "df -h"                            │
+        │         → exit 0, "120GB free..."                    │
+        │ iter 2: done=true, reply = "Zeta: 120GB free"       │
         └──────────────────────────────────────────────────────┘
 
-t=8s    Task #2 done. result = "You have 120GB free on disk."
-        processNext() picks task #3
-        previous_context = result of #2
-        ...runs curl ifconfig.me...
+t=8s    Task #2 done. processNext() → task #3 ...
+t=11s   Task #3 done. processNext() → task #4 ...
+t=15s   Task #4 done. processNext() → task #5
 
-t=11s   Task #3 done. result = "Your public IP is 203.0.113.42"
-        processNext() picks task #4
-        previous_context = result of #3
-        ...runs docker ps...
-
-t=15s   Task #4 done. result = "3 containers: nginx, postgres, redis"
-        processNext() picks task #5
-        previous_context = result of #4  ← NOT result of #1
+        previous_context = result of #4 (Docker containers)
 
         ┌──────────────────────────────────────────────────────────────┐
-        │ AgentLoop for Task #5                                        │
+        │ AgentLoop for Task #5 (1 iteration)                          │
         │                                                              │
-        │ Input to planner:                                            │
-        │ "Previous task context:                                      │
-        │  3 containers: nginx, postgres, redis                        │
+        │ messages include: previous context from task #4              │
         │                                                              │
-        │  New request: Append 'goodbye' to notes.txt and show me      │
-        │  the final contents"                                         │
-        │                                                              │
-        │ Planner → ["echo 'goodbye' >> ~/notes.txt && cat ~/notes"]  │
-        │ Executor → exit 0, "hello world\ngoodbye"                    │
-        │ Summarise → "Zeta: Done. Contents of notes.txt:\n            │
-        │              hello world\ngoodbye"                           │
+        │ iter 1: command = "echo 'goodbye' >> ~/notes.txt             │
+        │                    && cat ~/notes.txt"                       │
+        │         → exit 0, "hello world\ngoodbye"                     │
+        │ iter 2: done=true, reply = "Zeta: Done. Contents:\n          │
+        │                             hello world\ngoodbye"            │
         └──────────────────────────────────────────────────────────────┘
 
 t=19s   Task #5 done.
@@ -305,30 +389,20 @@ t=19s   Task #5 done.
 ### Final SQLite state
 
 ```
-┌────┬──────────────────────────┬────────┬──────────────────────────────────┬────────────────────────────────────┐
-│ id │ message                  │ status │ previous_context                 │ result                             │
-├────┼──────────────────────────┼────────┼──────────────────────────────────┼────────────────────────────────────┤
-│  1 │ Create notes.txt...      │ done   │ ""                               │ Created ~/notes.txt with 'hello'   │
-│  2 │ How much free disk?      │ done   │ Created ~/notes.txt with 'hello' │ You have 120GB free on disk.       │
-│  3 │ What's my public IP?     │ done   │ You have 120GB free on disk.     │ Your public IP is 203.0.113.42     │
-│  4 │ List Docker containers   │ done   │ Your public IP is 203.0.113.42   │ 3 containers: nginx, postgres...   │
-│  5 │ Append 'goodbye'...      │ done   │ 3 containers: nginx, postgres... │ hello world\ngoodbye               │
-└────┴──────────────────────────┴────────┴──────────────────────────────────┴────────────────────────────────────┘
+┌────┬──────────────────────────┬────────┬──────────────────────────────────┬──────────────────────────────────┐
+│ id │ message                  │ status │ previous_context                 │ result                           │
+├────┼──────────────────────────┼────────┼──────────────────────────────────┼──────────────────────────────────┤
+│  1 │ Create notes.txt...      │ done   │ ""                               │ User asked: ...\nZeta replied:.. │
+│  2 │ How much free disk?      │ done   │ (result of #1)                   │ User asked: ...\nZeta replied:.. │
+│  3 │ What's my public IP?     │ done   │ (result of #2)                   │ User asked: ...\nZeta replied:.. │
+│  4 │ List Docker containers   │ done   │ (result of #3)                   │ User asked: ...\nZeta replied:.. │
+│  5 │ Append 'goodbye'...      │ done   │ (result of #4)                   │ User asked: ...\nZeta replied:.. │
+└────┴──────────────────────────┴────────┴──────────────────────────────────┴──────────────────────────────────┘
 ```
 
-### Why does task #5 succeed even though its context is about Docker?
+### Why does task #5 work even though its context is about Docker?
 
-Task #5's `previous_context` is the Docker output (from task #4), not the notes.txt creation (from task #1). But it still works because:
-
-1. The **user's message explicitly says** `notes.txt` — the planner doesn't need context to know which file.
-2. The planner is a reasoning model (o3-mini) — it interprets the user's intent from the message itself.
-3. `previous_context` is a **hint**, not the sole source of truth. It helps with ambiguous references like "that file" or "do the same thing again".
-
-### When context chaining breaks
-
-If message 5 were **"now append 'goodbye' to that file"** instead of naming `notes.txt`, the planner would see "3 containers: nginx, postgres, redis" as context and have no idea which file "that file" refers to. It would likely fail or guess wrong.
-
-> **Future improvement (Phase 9 — Global Context Persistence):** maintain a rolling summary of all recent tasks so the planner always has full situational awareness, not just the last task's result.
+Task #5's `previous_context` comes from task #4 (Docker). But it still works because the user explicitly says `notes.txt` — the planner infers the intent from the message itself. `previous_context` is a **hint for ambiguous references** like "that file" or "do the same thing again", not the sole source of truth.
 
 ---
 
@@ -337,7 +411,8 @@ If message 5 were **"now append 'goodbye' to that file"** instead of naming `not
 | Layer | Responsibility | Concurrency |
 |---|---|---|
 | **TaskQueue** | FIFO ordering, context chaining between tasks, crash recovery | One task at a time |
-| **AgentLoop** | Plan → Execute → Summarise cycle for a single task | Commands within a task run in parallel |
-| **Planner** | Decides what commands to run, and summarises results | Two LLM calls per task (plan + summarise) |
-| **Executor** | Runs shell commands, captures stdout/stderr/exit code | All commands in a plan run in parallel |
+| **AgentLoop** | Iterative plan → execute → observe → decide loop for a single task | One command per iteration, sequential |
+| **Planner** | Decides the next command and when the task is done | One LLM call per iteration |
+| **Executor** | Runs a single shell command, captures stdout/stderr/exit code | One command at a time |
+| **Settings** | `~/.zeta/settings.json` controls `maxIterations` (default 5) | Read at the start of each task |
 
