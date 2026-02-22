@@ -174,8 +174,9 @@ export class WhatsappClient {
   }
 
   async sendMessage(to: string, text: string): Promise<void> {
-    this.sentByBot.add(text);
-    await this.client.sendMessage(to, text);
+    const formatted = `Zeta: ${text}`;
+    this.sentByBot.add(formatted);
+    await this.client.sendMessage(to, formatted);
   }
 }
 

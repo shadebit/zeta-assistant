@@ -23,6 +23,7 @@ export class CommandExecutor {
         encoding: 'utf-8',
         shell: '/bin/bash',
         cwd: homedir(),
+        env: { ...process.env, LC_ALL: 'en_US.UTF-8' },
       });
 
       return { command, stdout: stdout.trim(), stderr: stderr.trim(), exitCode: 0 };

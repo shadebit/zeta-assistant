@@ -66,8 +66,22 @@ export class Planner {
       ],
     });
 
-    return response.choices[0]?.message?.content?.trim() ?? 'Done.';
+    const raw = response.choices[0]?.message?.content?.trim() ?? 'Done.';
+
+    return extractReply(raw);
   }
+}
+
+function extractReply(raw: string): string {
+  try {
+    const parsed = JSON.parse(raw) as { reply?: string };
+    if (typeof parsed.reply === 'string' && parsed.reply.length > 0) {
+      return parsed.reply;
+    }
+  } catch {
+    // Not JSON — return as-is
+  }
+  return raw;
 }
 
 function parsePlannerOutput(raw: string): PlannerOutput {
