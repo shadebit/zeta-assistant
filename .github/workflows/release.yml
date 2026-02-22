@@ -50,6 +50,7 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Generate changelog
+        id: changelog
         run: |
           VERSION="v${{ steps.version.outputs.version }}"
           PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
@@ -74,6 +75,20 @@ jobs:
 
           mv /tmp/new-entry.md CHANGELOG.md
 
+          # Extract only the current version section for the GitHub Release body
+          RELEASE_BODY=$(awk '/^# v'"${VERSION#v}"'/{found=1; next} /^# v[0-9]/{found=0} found' CHANGELOG.md)
+          COMPARE_URL="https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${VERSION}"
+
+          {
+            echo "body<<EOF"
+            echo "$RELEASE_BODY"
+            echo ""
+            if [ -n "$PREV_TAG" ]; then
+              echo "**Full Changelog:** [${PREV_TAG}...${VERSION}](${COMPARE_URL})"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Commit version bump and changelog
         run: |
           git add package.json package-lock.json CHANGELOG.md
@@ -91,11 +106,13 @@ jobs:
         with:
           script: |
             const version = 'v${{ steps.version.outputs.version }}';
+            const body = `${{ steps.changelog.outputs.body }}`;
             const { data: release } = await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
               tag_name: version,
               name: `Release ${version}`,
-              generate_release_notes: true,
+              body: body,
+              generate_release_notes: false,
             });
             console.log(`Created release: ${release.html_url}`);
