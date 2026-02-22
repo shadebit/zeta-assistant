@@ -11,7 +11,7 @@ Zeta Assistant is a locally running AI operator controlled via WhatsApp Web.
 
 It must:
 
-- Run only while the terminal is open (`npx zeta-assistant`)
+- Run only while the terminal is open (`npx @shadebit/zeta-assistant`)
 - Use WhatsApp Web via QR login (no Twilio, no ngrok)
 - Persist session locally
 - Use GPT-4o with structured tool calling
@@ -240,7 +240,7 @@ Executor loads and runs script with explicit `args` only.
 
 ### Phase 1 – Minimal WhatsApp Reception ✅
 
-**Goal:** Run `npx zeta-assistant` and receive a message.
+**Goal:** Run `npx @shadebit/zeta-assistant` and receive a message.
 
 - CLI structure
 - WhatsApp Web login with QR

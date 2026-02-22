@@ -32,7 +32,7 @@ Prerequisites:
   - Node.js >= 20
 
 Examples:
-  npx zeta-assistant --OPEN_AI_API_KEY=sk-...
-  OPEN_AI_API_KEY=sk-... npx zeta-assistant
+  npx @shadebit/zeta-assistant --OPEN_AI_API_KEY=sk-...
+  OPEN_AI_API_KEY=sk-... npx @shadebit/zeta-assistant
 `.trim();
 }

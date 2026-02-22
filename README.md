@@ -12,7 +12,7 @@ A locally running AI operator controlled via WhatsApp Web. Send a message from y
 You (WhatsApp) → Message → Zeta (terminal) → o3-mini plans commands → Executes on your machine → Replies on WhatsApp
 ```
 
-1. Run `OPEN_AI_API_KEY=sk-... npx zeta-assistant` in your terminal
+1. Run `OPEN_AI_API_KEY=sk-... npx @shadebit/zeta-assistant` in your terminal
 2. Scan the QR code with WhatsApp on your phone
 3. Send yourself a message (to your own number) — Zeta picks it up
 4. The AI planner (o3-mini) decides what shell commands to run
@@ -35,7 +35,7 @@ The assistant runs **only while the terminal is open**. No cloud, no webhooks, n
 ### Option 1: npx (recommended)
 
 ```bash
-OPEN_AI_API_KEY=sk-... npx zeta-assistant
+OPEN_AI_API_KEY=sk-... npx @shadebit/zeta-assistant
 ```
 
 > ⚠️ **Security:** Always prefer the env var method above. Passing the key via `--OPEN_AI_API_KEY=` flag exposes it in `ps aux` to other users on the same machine.
@@ -253,7 +253,7 @@ The best way to contribute is to **use Zeta Assistant and report issues through 
 
 1. Run the assistant:
    ```bash
-   OPEN_AI_API_KEY=sk-... npx zeta-assistant
+   OPEN_AI_API_KEY=sk-... npx @shadebit/zeta-assistant
    ```
 2. Use it normally — send messages, ask it to run commands, explore its limits.
 3. When something breaks or behaves unexpectedly, **send a WhatsApp audio or text message describing the problem**. This way we collect real-world issues from actual usage and can fix them for everyone at once.
