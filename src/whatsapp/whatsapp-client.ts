@@ -164,6 +164,7 @@ export class WhatsappClient {
       'message_create',
       (msg: {
         from: string;
+        to: string;
         fromMe: boolean;
         body: string;
         hasMedia: boolean;
@@ -171,6 +172,16 @@ export class WhatsappClient {
         downloadMedia: () => Promise<{ data: string; mimetype: string }>;
       }) => {
         if (!msg.fromMe) {
+          return;
+        }
+
+        // Only process messages sent to yourself (same number).
+        // Messages to other people must be ignored.
+        if (msg.from !== msg.to) {
+          return;
+        }
+
+        if (!msg.body) {
           return;
         }
 
@@ -190,10 +201,6 @@ export class WhatsappClient {
               const errMsg = err instanceof Error ? err.message : String(err);
               this.logger.error(`Failed to download audio: ${errMsg}`);
             });
-          return;
-        }
-
-        if (!msg.body) {
           return;
         }
 
