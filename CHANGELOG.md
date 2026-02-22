@@ -1,3 +1,11 @@
+# v0.15.0
+
+**Released:** 2026-02-22
+
+- refactor: enhance agent loop and planner for iterative task execution (5f801b2)
+- fix: standardize OPENAI_API_KEY references across codebase and documentation (5cd4d56)
+- fix: standardize OPENAI_API_KEY references across codebase and documentation (00edf38)
+
 # v0.14.0
 
 **Released:** 2026-02-22
