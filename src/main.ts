@@ -21,7 +21,7 @@ function getVersion(): string {
 function requirePlannerApiKey(plannerApiKey: string | null): string {
   if (!plannerApiKey) {
     logger.error(
-      'OPEN_AI_API_KEY is required. Pass it via --OPEN_AI_API_KEY=<key> or set OPEN_AI_API_KEY env var.',
+      'OPENAI_API_KEY is required. Pass it via --OPENAI_API_KEY=<key> or set OPENAI_API_KEY env var.',
     );
     process.exit(1);
   }

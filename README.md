@@ -12,7 +12,7 @@ A locally running AI operator controlled via WhatsApp Web. Send a message from y
 You (WhatsApp) → Text or Audio → Zeta (terminal) → o3-mini plans commands → Executes on your machine → Replies on WhatsApp
 ```
 
-1. Run `OPEN_AI_API_KEY=sk-... npx @shadebit/zeta-assistant` in your terminal
+1. Run `OPENAI_API_KEY=sk-... npx @shadebit/zeta-assistant` in your terminal
 2. Scan the QR code with WhatsApp on your phone
 3. Send yourself a **text or audio message** (to your own number) — Zeta picks it up
 4. Audio is transcribed automatically via OpenAI Whisper
@@ -39,10 +39,10 @@ The assistant runs **only while the terminal is open**. No cloud, no webhooks, n
 ### Option 1: npx (recommended)
 
 ```bash
-OPEN_AI_API_KEY=sk-... npx @shadebit/zeta-assistant
+OPENAI_API_KEY=sk-... npx @shadebit/zeta-assistant
 ```
 
-> ⚠️ **Security:** Always prefer the env var method above. Passing the key via `--OPEN_AI_API_KEY=` flag exposes it in `ps aux` to other users on the same machine.
+> ⚠️ **Security:** Always prefer the env var method above. Passing the key via `--OPENAI_API_KEY=` flag exposes it in `ps aux` to other users on the same machine.
 
 ### Option 2: Clone and run with npm
 
@@ -58,7 +58,7 @@ npm install
 npm run build
 
 # 4. Run
-OPEN_AI_API_KEY=sk-... npm start
+OPENAI_API_KEY=sk-... npm start
 ```
 
 On first run, a **QR code** appears in the terminal. Scan it with WhatsApp on your phone. The session is persisted in `~/.zeta/whatsapp-session/` so you only need to scan once.
@@ -87,7 +87,7 @@ zeta-assistant [options]
 
 | Flag | Description |
 |---|---|
-| `--OPEN_AI_API_KEY=<key>` | OpenAI API key **(required)**. Also reads `OPEN_AI_API_KEY` env var. |
+| `--OPENAI_API_KEY=<key>` | OpenAI API key **(required)**. Also reads `OPENAI_API_KEY` env var. |
 | `--reset-whatsapp` | Clear saved session and force a new QR code scan |
 | `--help`, `-h` | Show help message |
 | `--version`, `-v` | Show version number |
@@ -263,7 +263,7 @@ The best way to contribute is to **use Zeta Assistant and report issues through 
 
 1. Run the assistant:
    ```bash
-   OPEN_AI_API_KEY=sk-... npx @shadebit/zeta-assistant
+   OPENAI_API_KEY=sk-... npx @shadebit/zeta-assistant
    ```
 2. Use it normally — send messages, ask it to run commands, explore its limits.
 3. When something breaks or behaves unexpectedly, **send a WhatsApp audio or text message describing the problem**. This way we collect real-world issues from actual usage and can fix them for everyone at once.

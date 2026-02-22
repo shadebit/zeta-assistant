@@ -112,7 +112,7 @@ Always enabled.
 
 | Flag | Description |
 |---|---|
-| `--OPEN_AI_API_KEY=<key>` | OpenAI API key (required). Also reads `OPEN_AI_API_KEY` env var |
+| `--OPENAI_API_KEY=<key>` | OpenAI API key (required). Also reads `OPENAI_API_KEY` env var |
 | `--reset-whatsapp` | Clear session, force new QR scan |
 | `--help`, `-h` | Show help |
 | `--version`, `-v` | Show version |
