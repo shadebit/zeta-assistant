@@ -2,22 +2,26 @@
 
 A locally running AI operator controlled via WhatsApp Web. Send a message from your phone and Zeta plans, validates, and executes tasks autonomously — all from your terminal.
 
-> **Status:** Phase 2 complete — AI agent loop with o3-mini, command execution, and WhatsApp replies working.
+> **Status:** Phase 4 complete — audio input (Whisper), SQLite task queue, file attachments, and context passing between tasks.
 
 ---
 
 ## How It Works
 
 ```
-You (WhatsApp) → Message → Zeta (terminal) → o3-mini plans commands → Executes on your machine → Replies on WhatsApp
+You (WhatsApp) → Text or Audio → Zeta (terminal) → o3-mini plans commands → Executes on your machine → Replies on WhatsApp
 ```
 
 1. Run `OPEN_AI_API_KEY=sk-... npx @shadebit/zeta-assistant` in your terminal
 2. Scan the QR code with WhatsApp on your phone
-3. Send yourself a message (to your own number) — Zeta picks it up
-4. The AI planner (o3-mini) decides what shell commands to run
-5. Commands execute in parallel on your machine
-6. Zeta summarises the results and replies on WhatsApp
+3. Send yourself a **text or audio message** (to your own number) — Zeta picks it up
+4. Audio is transcribed automatically via OpenAI Whisper
+5. Each message enters a **task queue** (SQLite) — executed one at a time, in order
+6. The AI planner (o3-mini) decides what shell commands to run
+7. Commands execute in parallel on your machine
+8. Zeta summarises the results and replies on WhatsApp (including file attachments)
+
+Talk to Zeta as if you were **sitting in front of your computer**. Send audios like "show me the files on my Desktop" or "how much free memory do I have?" — in future phases, this extends to GUI control: moving the mouse, clicking buttons, opening apps.
 
 The assistant runs **only while the terminal is open**. No cloud, no webhooks, no public exposure. Only messages you send to yourself are processed — messages from others are ignored.
 
@@ -98,7 +102,9 @@ zeta-assistant [options]
 |---|---|---|
 | **Language** | [TypeScript](https://www.typescriptlang.org/) 5.x | Strict mode, no `any`, fully typed |
 | **Runtime** | [Node.js](https://nodejs.org/) >= 20 | ESM, modern APIs |
-| **AI** | [OpenAI o3-mini](https://platform.openai.com/) | Planner — batches shell commands from natural language |
+| **AI Planner** | [OpenAI o3-mini](https://platform.openai.com/) | Plans and batches shell commands from natural language |
+| **AI Transcription** | [OpenAI Whisper](https://platform.openai.com/) | Audio-to-text for voice messages |
+| **Database** | [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) | Task queue (SQLite, `~/.zeta/tasks.db`) |
 | **WhatsApp** | [whatsapp-web.js](https://github.com/pedroslopez/whatsapp-web.js) | WhatsApp Web client via Puppeteer |
 | **Browser** | Chromium (via Puppeteer) | Dedicated browser instance, isolated from personal browser |
 | **QR Display** | [qrcode-terminal](https://www.npmjs.com/package/qrcode-terminal) | QR code rendered in the terminal |
@@ -112,8 +118,7 @@ zeta-assistant [options]
 
 | Category | Technology | Phase | Purpose |
 |---|---|---|---|
-| **Database** | [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) | 4 | Task queue, session messages (SQLite) |
-| **Screenshot** | [Puppeteer](https://pptr.dev/) (direct) | 3 | `take_screenshot` tool |
+| **GUI Control** | [Puppeteer](https://pptr.dev/) (direct) | 5 | Mouse, keyboard, screenshot, app control |
 
 ### Intentionally Not Used
 
@@ -139,10 +144,14 @@ zeta-assistant/
 │   │   └── planner.ts               # o3-mini planner (batches shell commands)
 │   ├── executor/
 │   │   └── command-executor.ts       # Parallel shell command execution (/bin/bash)
+│   ├── queue/
+│   │   └── task-queue.ts             # SQLite FIFO task queue with context passing
+│   ├── transcriber/
+│   │   └── audio-transcriber.ts      # OpenAI Whisper audio-to-text
 │   ├── config/
 │   │   └── config-loader.ts          # Directory setup (~/.zeta)
 │   ├── whatsapp/
-│   │   └── whatsapp-client.ts        # whatsapp-web.js wrapper
+│   │   └── whatsapp-client.ts        # whatsapp-web.js wrapper (text + audio)
 │   ├── logger/
 │   │   ├── logger.ts                 # Logger interface (swap implementations easily)
 │   │   └── winston-logger.ts         # Winston impl: colored stderr + JSON lines to file
@@ -151,8 +160,7 @@ zeta-assistant/
 │   │   └── qrcode-terminal.d.ts      # Type declarations for untyped package
 │   └── utils/
 │       └── cli-parser.ts             # Minimal process.argv parser
-├── tests/
-│   └── unit/                         # Mirrors src/ structure
+├── soul.md                            # Assistant personality and rules
 ├── docs/
 │   └── prd.md                        # Product requirements & technical spec
 ├── package.json
@@ -172,8 +180,8 @@ zeta-assistant/
 ├── whatsapp-session/     # Persisted WhatsApp login (LocalAuth)
 ├── logs/
 │   └── zeta.log          # JSON lines log file (Winston file transport)
+├── tasks.db              # SQLite task queue
 ├── scripts/              # Reusable scripts (Phase 7)
-├── sessions.db           # SQLite task queue (Phase 4)
 └── global_context.json   # Cross-task memory (Phase 9)
 ```
 
@@ -210,11 +218,12 @@ npm run format
 
 Releases are fully automated via GitHub Actions. When a **PR is merged into `main`**:
 
-1. CI runs lint, type check, and build
+1. CI runs lint and build
 2. Version is bumped (minor)
 3. `CHANGELOG.md` is generated with all commits since the last release
-4. A git tag is created (`v0.3.0`, `v0.4.0`, etc.)
-5. The package is published to [npm](https://www.npmjs.com/package/zeta-assistant)
+4. A git tag is created (`v0.11.0`, `v0.12.0`, etc.)
+5. The package is published to [npm](https://www.npmjs.com/package/@shadebit/zeta-assistant)
+6. A GitHub Release is created with the changelog body and a comparison link
 
 No manual steps required. Just merge and it ships.
 
@@ -232,12 +241,13 @@ No manual steps required. Just merge and it ships.
 |---|---|---|
 | 1 | WhatsApp connection, QR login, message reception | ✅ Done |
 | 2 | AI agent loop (o3-mini), command execution, reply to messages | ✅ Done |
-| 3 | Screenshot tool, media attachments | ⬜ |
-| 4 | SQLite task queue, FIFO processing | ⬜ |
-| 5 | Governor + Decision Engine, confirmation flow | ⬜ |
-| 6 | Script registry (create, reuse, update) | ⬜ |
-| 7 | Full JSONL structured logging | ⬜ |
-| 8 | Global context persistence | ⬜ |
+| 3 | Audio input (Whisper), SQLite task queue, FIFO processing | ✅ Done |
+| 4 | File attachments, binary detection, media sending | ✅ Done |
+| 5 | GUI control (mouse, keyboard, screenshot, apps) | ⬜ |
+| 6 | Governor + Decision Engine, confirmation flow | ⬜ |
+| 7 | Script registry (create, reuse, update) | ⬜ |
+| 8 | Full JSONL structured logging | ⬜ |
+| 9 | Global context persistence | ⬜ |
 
 > Full product requirements and technical specification: [`docs/prd.md`](docs/prd.md)
 
