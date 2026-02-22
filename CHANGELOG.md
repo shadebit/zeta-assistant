@@ -1,3 +1,10 @@
+# v0.17.0
+
+**Released:** 2026-02-22
+
+- Merge remote-tracking branch 'origin/main' (86794d1)
+- feat: add GUI tool integration for agent task execution (833f5b4)
+
 # v0.16.0
 
 **Released:** 2026-02-22
