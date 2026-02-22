@@ -1,3 +1,11 @@
+# v0.10.0
+
+**Released:** 2026-02-22
+
+- Merge remote-tracking branch 'origin/main' (945555a)
+- ci: add github release step and trigger pr checks (7aa8229)
+- ci: trigger pr checks workflow (153d0ba)
+
 # v0.9.0
 
 **Released:** 2026-02-22
