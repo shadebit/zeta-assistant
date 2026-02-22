@@ -51,37 +51,27 @@ export class Planner {
     return parsePlannerOutput(raw);
   }
 
-  async summarise(userMessage: string, commandResults: string): Promise<string> {
+  async summarise(userMessage: string, commandResults: string): Promise<PlannerOutput> {
     logger.info('Summarising command results...');
 
     const response = await this.client.chat.completions.create({
       model: PLANNER_MODEL,
+      response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: buildSystemPrompt() },
         { role: 'user', content: userMessage },
         {
           role: 'user',
-          content: `Command results:\n${commandResults}\n\nNow write the final reply to the user based on these results. Be concise and direct.`,
+          content: `Command results:\n${commandResults}\n\nBased on these results, return JSON with "reply" (the final answer to the user) and "files" (absolute paths of files to send as attachments, if any). No more commands needed.`,
         },
       ],
     });
 
-    const raw = response.choices[0]?.message?.content?.trim() ?? 'Done.';
+    const raw = response.choices[0]?.message?.content?.trim() ?? '{}';
+    logger.info(`Summarise raw response: ${raw}`);
 
-    return extractReply(raw);
+    return parsePlannerOutput(raw);
   }
-}
-
-function extractReply(raw: string): string {
-  try {
-    const parsed = JSON.parse(raw) as { reply?: string };
-    if (typeof parsed.reply === 'string' && parsed.reply.length > 0) {
-      return parsed.reply;
-    }
-  } catch {
-    // Not JSON — return as-is
-  }
-  return raw;
 }
 
 function parsePlannerOutput(raw: string): PlannerOutput {
@@ -92,9 +82,10 @@ function parsePlannerOutput(raw: string): PlannerOutput {
       commands: Array.isArray(parsed.commands) ? parsed.commands : [],
       reasoning: typeof parsed.reasoning === 'string' ? parsed.reasoning : '',
       reply: typeof parsed.reply === 'string' ? parsed.reply : '',
+      files: Array.isArray(parsed.files) ? parsed.files : [],
     };
   } catch {
     logger.warn(`Failed to parse planner output, treating as plain reply: ${raw}`);
-    return { commands: [], reasoning: '', reply: raw };
+    return { commands: [], reasoning: '', reply: raw, files: [] };
   }
 }

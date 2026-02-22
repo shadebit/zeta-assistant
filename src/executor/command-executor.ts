@@ -6,6 +6,17 @@ import type { CommandResult } from '../types/index.js';
 
 const execAsync = promisify(exec);
 const COMMAND_TIMEOUT_MS = 30_000;
+const MAX_OUTPUT_LENGTH = 4000;
+
+function truncate(text: string): string {
+  return text.length > MAX_OUTPUT_LENGTH
+    ? `${text.slice(0, MAX_OUTPUT_LENGTH)}\n...(truncated)`
+    : text;
+}
+
+function isBinaryOutput(text: string): boolean {
+  return /[\x00-\x08\x0E-\x1F]/.test(text);
+}
 
 export class CommandExecutor {
   private readonly logger = new WinstonLogger(CommandExecutor.name);
@@ -26,14 +37,28 @@ export class CommandExecutor {
         env: { ...process.env, LC_ALL: 'en_US.UTF-8' },
       });
 
-      return { command, stdout: stdout.trim(), stderr: stderr.trim(), exitCode: 0 };
+      if (isBinaryOutput(stdout)) {
+        return {
+          command,
+          stdout: '(binary output detected — skipped)',
+          stderr: stderr.trim(),
+          exitCode: 0,
+        };
+      }
+
+      return {
+        command,
+        stdout: truncate(stdout.trim()),
+        stderr: truncate(stderr.trim()),
+        exitCode: 0,
+      };
     } catch (error: unknown) {
       const err = error as { stdout?: string; stderr?: string; code?: number; message?: string };
 
       return {
         command,
-        stdout: err.stdout?.trim() ?? '',
-        stderr: err.stderr?.trim() ?? err.message ?? 'Unknown error',
+        stdout: truncate(err.stdout?.trim() ?? ''),
+        stderr: truncate(err.stderr?.trim() ?? err.message ?? 'Unknown error'),
         exitCode: err.code ?? 1,
       };
     }

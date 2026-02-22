@@ -1,5 +1,5 @@
 import pkg from 'whatsapp-web.js';
-const { Client, LocalAuth } = pkg;
+const { Client, LocalAuth, MessageMedia } = pkg;
 import qrcode from 'qrcode-terminal';
 import { rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -177,6 +177,15 @@ export class WhatsappClient {
     const formatted = `Zeta: ${text}`;
     this.sentByBot.add(formatted);
     await this.client.sendMessage(to, formatted);
+  }
+
+  async sendMedia(to: string, filePath: string, caption?: string): Promise<void> {
+    const media = MessageMedia.fromFilePath(filePath);
+    const formatted = caption ? `Zeta: ${caption}` : '';
+    if (formatted) {
+      this.sentByBot.add(formatted);
+    }
+    await this.client.sendMessage(to, media, { caption: formatted || undefined });
   }
 }
 

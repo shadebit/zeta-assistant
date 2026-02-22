@@ -64,8 +64,11 @@ async function main(): Promise<void> {
     onMessage: (sender: string, body: string) => {
       agentLoop
         .run(body)
-        .then(async (reply) => {
-          await whatsapp.sendMessage(sender, reply);
+        .then(async (response) => {
+          for (const filePath of response.files) {
+            await whatsapp.sendMedia(sender, filePath);
+          }
+          await whatsapp.sendMessage(sender, response.reply);
         })
         .catch((error: unknown) => {
           const message = error instanceof Error ? error.message : String(error);

@@ -23,4 +23,5 @@ export interface PlannerOutput {
   readonly commands: readonly string[];
   readonly reasoning: string;
   readonly reply: string;
+  readonly files: readonly string[];
 }
