@@ -1,3 +1,9 @@
+# v0.6.0
+
+**Released:** 2026-02-22
+
+- chore: add NODE_AUTH_TOKEN to npm publish step in release workflow (#6) (0b94c04)
+
 # v0.5.0
 
 **Released:** 2026-02-22
