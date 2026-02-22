@@ -1,3 +1,12 @@
+# v0.16.0
+
+**Released:** 2026-02-22
+
+- refactor: integrate runtime settings into agent loop and executor (ad78414)
+- refactor: reintroduce "Zeta" branding in WhatsApp messages and reprocess guard (02afe5f)
+- Merge remote-tracking branch 'origin/main' (557e3aa)
+- refactor: remove "Zeta" prefix from WhatsApp client messages and responses (baf5e8c)
+
 # v0.15.0
 
 **Released:** 2026-02-22
