@@ -1,3 +1,9 @@
+# v0.9.0
+
+**Released:** 2026-02-22
+
+- ci: trigger pr checks workflow (c729434)
+
 # v0.8.0
 
 **Released:** 2026-02-22
