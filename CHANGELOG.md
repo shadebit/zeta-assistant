@@ -1,3 +1,9 @@
+# v0.5.0
+
+**Released:** 2026-02-22
+
+- chore: update release workflow for npm trusted publishing (#5) (526ca7e)
+
 # v0.4.0
 
 **Released:** 2026-02-21
