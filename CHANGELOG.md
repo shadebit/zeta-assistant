@@ -1,3 +1,11 @@
+# v0.13.0
+
+**Released:** 2026-02-22
+
+- docs: update README to reflect Phase 4 completion and new features (5b29cd2)
+- Merge remote-tracking branch 'origin/main' (b5a5243)
+- refactor: apply scoped package name `@shadebit/zeta-assistant` across project (dd47b92)
+
 # v0.12.0
 
 **Released:** 2026-02-22
