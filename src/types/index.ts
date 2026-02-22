@@ -9,6 +9,8 @@ export interface ZetaConfig {
 
 export interface ZetaSettings {
   readonly maxIterations: number;
+  readonly commandTimeoutMs: number;
+  readonly maxOutputLength: number;
 }
 
 export interface CliArgs {

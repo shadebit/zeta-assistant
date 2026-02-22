@@ -26,8 +26,11 @@ export class AgentLoop {
     logger.info(`Running agent loop for: "${userMessage}"`);
 
     const settings: ZetaSettings = loadSettings(this.settingsPath);
+    logger.info(
+      `Settings: maxIterations=${String(settings.maxIterations)}, commandTimeoutMs=${String(settings.commandTimeoutMs)}, maxOutputLength=${String(settings.maxOutputLength)}`,
+    );
+
     const maxIterations = settings.maxIterations;
-    logger.info(`Max iterations: ${String(maxIterations)}`);
 
     const messages: ChatCompletionMessageParam[] = [
       { role: 'system', content: buildSystemPrompt() },
@@ -67,7 +70,7 @@ export class AgentLoop {
       }
 
       logger.info(`Executing: ${plan.command}`);
-      const result = await this.executor.run(plan.command);
+      const result = await this.executor.run(plan.command, settings);
 
       const status = result.exitCode === 0 ? '✓' : '✗';
       const output = result.stdout || result.stderr || '(no output)';

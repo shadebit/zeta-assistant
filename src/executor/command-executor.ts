@@ -2,16 +2,12 @@ import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import { homedir } from 'node:os';
 import { WinstonLogger } from '../logger/index.js';
-import type { CommandResult } from '../types/index.js';
+import type { CommandResult, ZetaSettings } from '../types/index.js';
 
 const execAsync = promisify(exec);
-const COMMAND_TIMEOUT_MS = 30_000;
-const MAX_OUTPUT_LENGTH = 4000;
 
-function truncate(text: string): string {
-  return text.length > MAX_OUTPUT_LENGTH
-    ? `${text.slice(0, MAX_OUTPUT_LENGTH)}\n...(truncated)`
-    : text;
+function truncate(text: string, maxLength: number): string {
+  return text.length > maxLength ? `${text.slice(0, maxLength)}\n...(truncated)` : text;
 }
 
 function isBinaryOutput(text: string): boolean {
@@ -21,12 +17,12 @@ function isBinaryOutput(text: string): boolean {
 export class CommandExecutor {
   private readonly logger = new WinstonLogger(CommandExecutor.name);
 
-  async run(command: string): Promise<CommandResult> {
+  async run(command: string, settings: ZetaSettings): Promise<CommandResult> {
     this.logger.warn(`Executing command: ${command}`);
 
     try {
       const { stdout, stderr } = await execAsync(command, {
-        timeout: COMMAND_TIMEOUT_MS,
+        timeout: settings.commandTimeoutMs,
         encoding: 'utf-8',
         shell: '/bin/bash',
         cwd: homedir(),
@@ -44,8 +40,8 @@ export class CommandExecutor {
 
       return {
         command,
-        stdout: truncate(stdout.trim()),
-        stderr: truncate(stderr.trim()),
+        stdout: truncate(stdout.trim(), settings.maxOutputLength),
+        stderr: truncate(stderr.trim(), settings.maxOutputLength),
         exitCode: 0,
       };
     } catch (error: unknown) {
@@ -53,8 +49,11 @@ export class CommandExecutor {
 
       return {
         command,
-        stdout: truncate(err.stdout?.trim() ?? ''),
-        stderr: truncate(err.stderr?.trim() ?? err.message ?? 'Unknown error'),
+        stdout: truncate(err.stdout?.trim() ?? '', settings.maxOutputLength),
+        stderr: truncate(
+          err.stderr?.trim() ?? err.message ?? 'Unknown error',
+          settings.maxOutputLength,
+        ),
         exitCode: err.code ?? 1,
       };
     }

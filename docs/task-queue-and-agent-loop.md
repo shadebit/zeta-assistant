@@ -99,18 +99,26 @@ User message
 
 - **One command per iteration.** Chain dependent steps with `&&` inside the single command string (e.g., `cd /tmp/repo && npm install && npm test`). This guarantees sequential execution and avoids the old parallel-execution race condition.
 - **Conversation history grows.** Each iteration appends the plan (as `assistant`) and the command result (as `user`) to the `messages[]` array. The planner always has the full context of what it already tried and what happened.
-- **Max iterations cap.** Controlled by `~/.zeta/settings.json` → `maxIterations` (default: 5). If the limit is hit, the system injects a final message asking the planner to summarise what it has. The user can ask the assistant to change this value at runtime.
+- **Max iterations cap.** Controlled by `~/.zeta/settings.json` → `maxIterations` (default: 50). If the limit is hit, the system injects a final message asking the planner to summarise what it has. The user can ask the assistant to change this value at runtime.
 - **The planner decides when it's done.** It sets `"done": true` when the reply is ready. If `"done": false`, the loop executes the command and feeds the result back.
 
 ### Settings file (`~/.zeta/settings.json`)
 
 ```json
 {
-  "maxIterations": 5
+  "maxIterations": 50,
+  "commandTimeoutMs": 30000,
+  "maxOutputLength": 4000
 }
 ```
 
-The user can ask Zeta to adjust this via WhatsApp (e.g., "increase max iterations to 10"). The agent reads the file fresh at the start of each task, so changes take effect on the next task.
+| Setting | Default | Description |
+|---|---|---|
+| `maxIterations` | 50 | Max agent loop iterations per task. Prevents infinite loops. |
+| `commandTimeoutMs` | 30000 | Max time (ms) for a single shell command before it's killed. |
+| `maxOutputLength` | 4000 | Max characters captured from stdout/stderr per command. |
+
+Created automatically on first run with defaults. The user can ask Zeta to adjust any value via WhatsApp (e.g., "increase command timeout to 60 seconds"). The agent reads the file fresh at the start of each task, so changes take effect on the next task.
 
 ---
 
@@ -414,5 +422,4 @@ Task #5's `previous_context` comes from task #4 (Docker). But it still works bec
 | **AgentLoop** | Iterative plan → execute → observe → decide loop for a single task | One command per iteration, sequential |
 | **Planner** | Decides the next command and when the task is done | One LLM call per iteration |
 | **Executor** | Runs a single shell command, captures stdout/stderr/exit code | One command at a time |
-| **Settings** | `~/.zeta/settings.json` controls `maxIterations` (default 5) | Read at the start of each task |
-
+| **Settings** | `~/.zeta/settings.json` controls runtime limits (default: maxIterations=50, commandTimeoutMs=30000, maxOutputLength=4000) | Read at the start of each task |

@@ -8,7 +8,9 @@ const REQUIRED_SUBDIRS = ['whatsapp-session', 'logs', 'scripts'] as const;
 const SETTINGS_FILE = 'settings.json';
 
 const DEFAULT_SETTINGS: ZetaSettings = {
-  maxIterations: 5,
+  maxIterations: 50,
+  commandTimeoutMs: 30_000,
+  maxOutputLength: 4_000,
 };
 
 export function ensureDirectory(dirPath: string): void {
@@ -39,6 +41,14 @@ export function loadSettings(settingsPath: string): ZetaSettings {
         typeof parsed.maxIterations === 'number' && parsed.maxIterations > 0
           ? parsed.maxIterations
           : DEFAULT_SETTINGS.maxIterations,
+      commandTimeoutMs:
+        typeof parsed.commandTimeoutMs === 'number' && parsed.commandTimeoutMs > 0
+          ? parsed.commandTimeoutMs
+          : DEFAULT_SETTINGS.commandTimeoutMs,
+      maxOutputLength:
+        typeof parsed.maxOutputLength === 'number' && parsed.maxOutputLength > 0
+          ? parsed.maxOutputLength
+          : DEFAULT_SETTINGS.maxOutputLength,
     };
   } catch {
     return { ...DEFAULT_SETTINGS };
