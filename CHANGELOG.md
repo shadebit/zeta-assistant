@@ -1,3 +1,10 @@
+# v0.12.0
+
+**Released:** 2026-02-22
+
+- ci: enhance release workflow to include changelog in GitHub releases (3e37730)
+- feat: integrate task queue, audio transcription & improve agent context (7402182)
+
 # v0.11.0
 
 **Released:** 2026-02-22
