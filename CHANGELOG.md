@@ -1,3 +1,9 @@
+# v0.7.0
+
+**Released:** 2026-02-22
+
+- chore: add repository field to package.json (#7) (c8fb5d3)
+
 # v0.6.0
 
 **Released:** 2026-02-22
