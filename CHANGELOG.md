@@ -1,3 +1,10 @@
+# v0.18.0
+
+**Released:** 2026-02-23
+
+- Merge remote-tracking branch 'origin/main' (c99ad80)
+- fix: improve error handling and user guidance for screenshot permissions (92108ed)
+
 # v0.17.0
 
 **Released:** 2026-02-22

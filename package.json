@@ -1,6 +1,6 @@
 {
   "name": "@shadebit/zeta-assistant",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "description": "A locally running AI operator controlled via WhatsApp Web",
   "repository": {
     "type": "git",
